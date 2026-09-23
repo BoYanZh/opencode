@@ -131,3 +131,28 @@ export const SubtitleAction = {
     )
   },
 }
+
+export const RunningElapsed = {
+  args: {
+    status: "running",
+    startedAt: Date.now() - 5000,
+    trigger: {
+      title: "Running tool",
+      subtitle: "Working...",
+    },
+    children: "Progress details",
+  },
+}
+
+export const CompletedElapsed = {
+  args: {
+    status: "completed",
+    startedAt: 1_700_000_000_000,
+    endedAt: 1_700_000_003_200,
+    trigger: {
+      title: "Finished tool",
+      subtitle: "Done",
+    },
+    children: "Result details",
+  },
+}
