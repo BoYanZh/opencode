@@ -1954,7 +1954,14 @@ export function InlineToolRow(props: {
     >
       <Switch>
         <Match when={props.spinner}>
-          <Spinner color={props.color} children={props.children} />
+          <Spinner color={props.color}>
+            {props.children}
+            <Show when={props.elapsed}>
+              {(e) => (
+                <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>
+              )}
+            </Show>
+          </Spinner>
         </Match>
         <Match when={true}>
           <Show
@@ -1965,6 +1972,9 @@ export function InlineToolRow(props: {
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
                 ~ {props.pending}
+                <Show when={props.elapsed}>
+                  {(e) => <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>}
+                </Show>
               </text>
             }
             when={props.complete || props.failed}
