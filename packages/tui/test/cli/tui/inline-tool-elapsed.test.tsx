@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { createSignal } from "solid-js"
 import { testRender, type JSX } from "@opentui/solid"
 import { RGBA } from "@opentui/core"
 import { InlineToolRow } from "../../../src/routes/session"
@@ -62,5 +63,46 @@ describe("TUI inline tool elapsed badge", () => {
     )
     expect(frame).toContain("Read src/index.ts")
     expect(frame).not.toContain("·")
+  })
+
+  test("updates the row when elapsed changes, like a live tick would", async () => {
+    const [elapsed, setElapsed] = createSignal("")
+    testSetup = await testRender(
+      () => (
+        <InlineToolRow icon="$" complete={false} pending="Running command…" elapsed={elapsed()} elapsedColor={muted}>
+          sleep 20
+        </InlineToolRow>
+      ),
+      { width: 72, height: 3 },
+    )
+    await testSetup.renderOnce()
+    let frame = testSetup
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n")
+      .trimEnd()
+    expect(frame).not.toContain("·")
+
+    setElapsed("· 5.0s")
+    await testSetup.renderOnce()
+    frame = testSetup
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n")
+      .trimEnd()
+    expect(frame).toContain("Running command…")
+    expect(frame).toContain("· 5.0s")
+
+    setElapsed("· 20.1s")
+    await testSetup.renderOnce()
+    frame = testSetup
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n")
+      .trimEnd()
+    expect(frame).toContain("· 20.1s")
   })
 })
