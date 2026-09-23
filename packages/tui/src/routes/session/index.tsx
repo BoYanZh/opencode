@@ -39,6 +39,7 @@ import type {
 import { useLocal } from "../../context/local"
 import { Locale } from "../../util/locale"
 import { webSearchProviderLabel } from "../../util/tool-display"
+import { useToolElapsed } from "./tool-elapsed"
 import { Dynamic, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useSDK } from "../../context/sdk"
 import { useEditorContext } from "../../context/editor"
@@ -1871,6 +1872,7 @@ function InlineTool(props: {
 
   const failed = createMemo(() => Boolean(error() && !denied()))
   const clickable = createMemo(() => Boolean(props.onClick || failed()))
+  const elapsed = useToolElapsed(() => props.part)
   const fg = createMemo(() => {
     if (props.color) return props.color
     if (permission()) return theme.warning
@@ -1895,6 +1897,8 @@ function InlineTool(props: {
       failure={props.failure}
       spinner={props.spinner}
       separate={props.separate}
+      elapsed={elapsed()}
+      elapsedColor={theme.textMuted}
       onMouseOver={() => clickable() && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -1925,6 +1929,8 @@ export function InlineToolRow(props: {
   failure?: string
   spinner?: boolean
   separate?: boolean
+  elapsed?: string
+  elapsedColor?: RGBA
   children: JSX.Element
   onMouseOver?: () => void
   onMouseOut?: () => void
@@ -1977,6 +1983,9 @@ export function InlineToolRow(props: {
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
                 {props.failed && !props.complete ? (props.failure ?? props.children) : props.children}
+                <Show when={props.elapsed}>
+                  {(e) => <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>}
+                </Show>
               </text>
             </box>
           </Show>
@@ -2002,6 +2011,8 @@ function BlockTool(props: {
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+  const elapsed = useToolElapsed(() => props.part)
+  const titleWithElapsed = (title: string) => (elapsed() ? `${title} ${elapsed()}` : title)
   return (
     <box
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
@@ -2027,11 +2038,11 @@ function BlockTool(props: {
             when={props.spinner}
             fallback={
               <text paddingLeft={3} fg={theme.textMuted}>
-                {title()}
+                {titleWithElapsed(title())}
               </text>
             }
           >
-            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+            <Spinner color={theme.textMuted}>{titleWithElapsed(title().replace(/^# /, ""))}</Spinner>
           </Show>
         )}
       </Show>
