@@ -3,6 +3,8 @@ import { createSignal } from "solid-js"
 import { testRender, type JSX } from "@opentui/solid"
 import { RGBA } from "@opentui/core"
 import { InlineToolRow } from "../../../src/routes/session"
+import { useToolElapsed } from "../../../src/routes/session/tool-elapsed"
+import type { ToolPart } from "@opencode-ai/sdk/v2"
 
 const muted = RGBA.fromValues(128, 128, 128, 1)
 
@@ -104,5 +106,44 @@ describe("TUI inline tool elapsed badge", () => {
       .join("\n")
       .trimEnd()
     expect(frame).toContain("· 20.1s")
+  })
+
+  test("ticks live through the real hook while the part runs", async () => {
+    const startedAt = Date.now()
+    const running: ToolPart = {
+      id: "prt_live",
+      sessionID: "ses_1",
+      messageID: "msg_1",
+      type: "tool",
+      callID: "call_1",
+      tool: "bash",
+      state: { status: "running", input: {}, time: { start: startedAt } },
+    }
+    function LiveFixture() {
+      const elapsed = useToolElapsed(() => running)
+      return (
+        <InlineToolRow icon="$" complete={false} pending="Running command…" elapsed={elapsed()} elapsedColor={muted}>
+          sleep 20
+        </InlineToolRow>
+      )
+    }
+    testSetup = await testRender(() => <LiveFixture />, { width: 72, height: 3 })
+    const read = () =>
+      testSetup!
+        .captureCharFrame()
+        .split("\n")
+        .map((line) => line.trimEnd())
+        .join("\n")
+        .trimEnd()
+    await testSetup.renderOnce()
+    const first = read()
+    await new Promise((resolve) => setTimeout(resolve, 2200))
+    await testSetup.renderOnce()
+    const second = read()
+    const tick = (frame: string) => frame.match(/· (\d+(?:\.\d+)?m?s)/)?.[1]
+    expect(tick(first)).toBeTruthy()
+    expect(tick(second)).toBeTruthy()
+    expect(tick(first)).not.toBe(tick(second))
+    expect(second).toContain("Running command…")
   })
 })
