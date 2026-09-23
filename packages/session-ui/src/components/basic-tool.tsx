@@ -1,8 +1,9 @@
-import { createEffect, For, Match, on, onCleanup, onMount, Show, Switch, type Accessor, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, type Accessor, type JSX } from "solid-js"
 import { animate, type AnimationPlaybackControls } from "motion"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
 import { createStore } from "solid-js/store"
 import { Collapsible } from "@opencode-ai/ui/collapsible"
+import { formatToolElapsed } from "./tool-elapsed"
 import type { IconProps } from "@opencode-ai/ui/icon"
 import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 
@@ -27,6 +28,10 @@ export interface BasicToolProps {
   trigger: TriggerTitle | JSX.Element | ((open: Accessor<boolean>) => JSX.Element)
   children?: JSX.Element
   status?: string
+  // Millisecond timestamps backing the per-tool elapsed badge (`· 3s`).
+  // Pending parts carry no timestamps yet; leave both unset then.
+  startedAt?: number
+  endedAt?: number
   hideDetails?: boolean
   defaultOpen?: boolean
   open?: boolean
@@ -84,6 +89,44 @@ function scheduleFrameMount(fn: () => void) {
 }
 
 export function BasicTool(props: BasicToolProps) {
+  const i18n = useI18n()
+  const numfmt = () => new Intl.NumberFormat(i18n.locale())
+  const formatTotal = (total: number) =>
+    total < 60
+      ? i18n.t("ui.message.duration.seconds", { count: numfmt().format(total) })
+      : i18n.t("ui.message.duration.minutesSeconds", {
+          minutes: numfmt().format(Math.floor(total / 60)),
+          seconds: numfmt().format(total % 60),
+        })
+  // Live elapsed badge (`· 3s`): ticks once per second while the tool runs,
+  // frozen text once endedAt is set. Timer stops on completion/unmount.
+  const [now, setNow] = createSignal(0)
+  let timer: ReturnType<typeof setInterval> | undefined
+  const ticking = () =>
+    pending() && props.startedAt !== undefined && props.endedAt === undefined
+  onMount(() => {
+    if (ticking() && timer === undefined) {
+      setNow(Date.now())
+      timer = setInterval(() => setNow(Date.now()), 1000)
+    }
+  })
+  createEffect(() => {
+    if (ticking()) {
+      if (timer === undefined) {
+        setNow(Date.now())
+        timer = setInterval(() => setNow(Date.now()), 1000)
+      }
+    } else if (timer !== undefined) {
+      clearInterval(timer)
+      timer = undefined
+    }
+  })
+  onCleanup(() => {
+    if (timer !== undefined) clearInterval(timer)
+  })
+  const elapsed = createMemo(() =>
+    formatToolElapsed(props.startedAt, props.endedAt, now(), formatTotal),
+  )
   const [state, setState] = createStore({
     open: props.defaultOpen ?? false,
     ready: !props.defer && (props.defaultOpen ?? false),
@@ -237,6 +280,9 @@ export function BasicTool(props: BasicToolProps) {
                         </For>
                       </Show>
                     </Show>
+                    <Show when={elapsed()}>
+                      {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
+                    </Show>
                   </div>
                   <Show when={!pending() && title().action}>
                     <span data-slot="basic-tool-tool-action">{title().action}</span>
@@ -325,6 +371,8 @@ export function GenericTool(props: {
   status?: string
   hideDetails?: boolean
   input?: Record<string, unknown>
+  startedAt?: number
+  endedAt?: number
 }) {
   const i18n = useI18n()
 
@@ -332,6 +380,8 @@ export function GenericTool(props: {
     <BasicTool
       icon="mcp"
       status={props.status}
+      startedAt={props.startedAt}
+      endedAt={props.endedAt}
       trigger={{
         title: i18n.t("ui.basicTool.called", { tool: props.tool }),
         subtitle: label(props.input),

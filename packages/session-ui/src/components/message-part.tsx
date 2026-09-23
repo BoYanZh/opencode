@@ -1460,6 +1460,10 @@ export interface ToolProps {
   sessionID?: string
   output?: string
   status?: string
+  // Millisecond timestamps backing the per-tool elapsed badge. Pending parts
+  // carry no timestamps yet; leave both unset then.
+  startedAt?: number
+  endedAt?: number
   hideDetails?: boolean
   defaultOpen?: boolean
   open?: boolean
@@ -1566,6 +1570,13 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const render = createMemo(() => ToolRegistry.render(part().tool) ?? GenericTool)
   const controlledOpen = () => (props.onToolOpenChange ? (props.toolOpen ?? props.defaultOpen) : undefined)
   const handleToolOpenChange = (open: boolean) => props.onToolOpenChange?.(open)
+  // Millisecond timestamps for the per-tool elapsed badge. Pending parts
+  // have no time object yet, so the badge stays hidden until the run starts.
+  const partTime = () => {
+    const state = part().state
+    if (!state || !("time" in state)) return undefined
+    return state.time as { start?: number; end?: number } | undefined
+  }
 
   return (
     <Show when={!hideQuestion()}>
@@ -1617,6 +1628,8 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               // @ts-expect-error
               output={part().state.output}
               status={part().state.status}
+              startedAt={partTime()?.start}
+              endedAt={partTime()?.end}
               hideDetails={props.hideDetails}
               defaultOpen={props.defaultOpen}
               open={controlledOpen()}
