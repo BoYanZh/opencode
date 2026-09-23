@@ -1915,8 +1915,16 @@ function InlineTool(props: {
   )
 }
 
-export function InlineToolRow(props: {
-  icon: string
+// Muted `· Xs` suffix for tool rows. Renders nothing when elapsed is empty.
+function ElapsedBadge(props: { elapsed?: string; elapsedColor?: RGBA }) {
+  return (
+    <Show when={props.elapsed}>
+      {(e) => <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>}
+    </Show>
+  )
+}
+
+export function InlineToolRow(props: {  icon: string
   iconColor?: RGBA
   color?: RGBA
   errorColor?: RGBA
@@ -1956,11 +1964,7 @@ export function InlineToolRow(props: {
         <Match when={props.spinner}>
           <Spinner color={props.color}>
             {props.children}
-            <Show when={props.elapsed}>
-              {(e) => (
-                <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>
-              )}
-            </Show>
+            <ElapsedBadge elapsed={props.elapsed} elapsedColor={props.elapsedColor} />
           </Spinner>
         </Match>
         <Match when={true}>
@@ -1972,9 +1976,7 @@ export function InlineToolRow(props: {
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
                 ~ {props.pending}
-                <Show when={props.elapsed}>
-                  {(e) => <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>}
-                </Show>
+                <ElapsedBadge elapsed={props.elapsed} elapsedColor={props.elapsedColor} />
               </text>
             }
             when={props.complete || props.failed}
@@ -1993,9 +1995,7 @@ export function InlineToolRow(props: {
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
                 {props.failed && !props.complete ? (props.failure ?? props.children) : props.children}
-                <Show when={props.elapsed}>
-                  {(e) => <span style={props.elapsedColor ? { fg: props.elapsedColor } : undefined}> {e()}</span>}
-                </Show>
+                <ElapsedBadge elapsed={props.elapsed} elapsedColor={props.elapsedColor} />
               </text>
             </box>
           </Show>
