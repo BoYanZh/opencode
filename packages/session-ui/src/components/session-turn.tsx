@@ -22,6 +22,7 @@ import { DiffChanges } from "@opencode-ai/ui/diff-changes"
 import { Icon } from "@opencode-ai/ui/icon"
 import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 import { SessionRetry } from "./session-retry"
+import { ToolElapsed } from "./basic-tool"
 import { TextReveal } from "@opencode-ai/ui/text-reveal"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
@@ -422,6 +423,7 @@ export function SessionTurn(
               <Show when={showThinking()}>
                 <div data-slot="session-turn-thinking">
                   <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} />
+                  <ToolElapsed startedAt={message()?.time.created} running={showThinking()} tight />
                   <Show when={!showReasoningSummaries()}>
                     <TextReveal
                       text={reasoningHeading()}

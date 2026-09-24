@@ -35,7 +35,7 @@ import { useData } from "../context"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { type UiI18n, useI18n } from "@opencode-ai/ui/context/i18n"
-import { BasicTool, GenericTool } from "./basic-tool"
+import { BasicTool, GenericTool, ToolElapsed } from "./basic-tool"
 import { Accordion } from "@opencode-ai/ui/accordion"
 import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
 import { Collapsible } from "@opencode-ai/ui/collapsible"
@@ -2122,12 +2122,14 @@ ToolRegistry.register({
         {...props}
         icon="console"
         allowOpenWhilePending
+        hideElapsedBadge
         trigger={(open) => (
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
                 <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
               </span>
+              <ToolElapsed startedAt={props.startedAt} endedAt={props.endedAt} running={pending()} tight />
               <Show when={!open() && props.input.command}>
                 <ShellSubmessage text={props.input.command} animate={sawPending} />
               </Show>

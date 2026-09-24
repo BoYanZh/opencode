@@ -32,6 +32,9 @@ export interface BasicToolProps {
   // Pending parts carry no timestamps yet; leave both unset then.
   startedAt?: number
   endedAt?: number
+  // Set when the caller renders its own ToolElapsed inline (e.g. shell puts
+  // it between title and command); suppresses the generic badge slots.
+  hideElapsedBadge?: boolean
   hideDetails?: boolean
   defaultOpen?: boolean
   open?: boolean
@@ -88,7 +91,18 @@ function scheduleFrameMount(fn: () => void) {
   return () => cancelAnimationFrame(frame)
 }
 
-export function BasicTool(props: BasicToolProps) {
+// Live elapsed badge shared by tool rows, inline tool titles, and the turn
+// thinking indicator. Ticks once per second while `running` with no end yet;
+// frozen text once `endedAt` is set; empty while timestamps are unknown.
+// `tight` drops the leading margin for badges placed inside flex-gap
+// containers (which already space their items); the default margin is for
+// badges appended after custom trigger layouts.
+export function ToolElapsed(props: {
+  startedAt?: number
+  endedAt?: number
+  running: boolean
+  tight?: boolean
+}) {
   const i18n = useI18n()
   const numfmt = () => new Intl.NumberFormat(i18n.locale())
   const formatTotal = (total: number) =>
@@ -98,12 +112,9 @@ export function BasicTool(props: BasicToolProps) {
           minutes: numfmt().format(Math.floor(total / 60)),
           seconds: numfmt().format(total % 60),
         })
-  // Live elapsed badge (`· 3s`): ticks once per second while the tool runs,
-  // frozen text once endedAt is set. Timer stops on completion/unmount.
   const [now, setNow] = createSignal(0)
   let timer: ReturnType<typeof setInterval> | undefined
-  const ticking = () =>
-    pending() && props.startedAt !== undefined && props.endedAt === undefined
+  const ticking = () => props.running && props.startedAt !== undefined && props.endedAt === undefined
   onMount(() => {
     if (ticking() && timer === undefined) {
       setNow(Date.now())
@@ -124,8 +135,23 @@ export function BasicTool(props: BasicToolProps) {
   onCleanup(() => {
     if (timer !== undefined) clearInterval(timer)
   })
-  const elapsed = createMemo(() =>
-    formatToolElapsed(props.startedAt, props.endedAt, now(), formatTotal),
+  const text = createMemo(() => formatToolElapsed(props.startedAt, props.endedAt, now(), formatTotal))
+  return (
+    <Show when={text()}>
+      {(t) => (
+        <span data-slot="basic-tool-tool-elapsed" style={props.tight ? { "margin-left": "0" } : undefined}>
+          {t()}
+        </span>
+      )}
+    </Show>
+  )
+}
+
+export function BasicTool(props: BasicToolProps) {
+  const elapsed = (tight?: boolean) => (
+    <Show when={!props.hideElapsedBadge}>
+      <ToolElapsed startedAt={props.startedAt} endedAt={props.endedAt} running={pending()} tight={tight} />
+    </Show>
   )
   const [state, setState] = createStore({
     open: props.defaultOpen ?? false,
@@ -239,9 +265,7 @@ export function BasicTool(props: BasicToolProps) {
               {/* Function triggers (e.g. shell) render custom layouts that
                   bypass the title branch below, so the badge needs its own
                   slot here. Branches are exclusive: no double render. */}
-              <Show when={elapsed()}>
-                {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
-              </Show>
+              {elapsed()}
             </Match>
             <Match when={isTriggerTitle(props.trigger) && props.trigger}>
               {(title) => (
@@ -288,9 +312,7 @@ export function BasicTool(props: BasicToolProps) {
                         </For>
                       </Show>
                     </Show>
-                    <Show when={elapsed()}>
-                      {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
-                    </Show>
+                    {elapsed(true)}
                   </div>
                   <Show when={!pending() && title().action}>
                     <span data-slot="basic-tool-tool-action">{title().action}</span>
@@ -300,9 +322,7 @@ export function BasicTool(props: BasicToolProps) {
             </Match>
             <Match when={true}>
               {props.trigger as JSX.Element}
-              <Show when={elapsed()}>
-                {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
-              </Show>
+              {elapsed()}
             </Match>
           </Switch>
         </div>
