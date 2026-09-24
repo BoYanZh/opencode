@@ -1116,6 +1116,7 @@ export function ContextToolGroup(props: {
                 split={false}
               />
             </span>
+            <ToolElapsed startedAt={groupTime().start} endedAt={groupTime().end} running={pending()} tight />
             <span
               data-slot="context-tool-group-summary"
               class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-text-base"
@@ -1138,7 +1139,6 @@ export function ContextToolGroup(props: {
                 fallback=""
               />
             </span>
-            <ToolElapsed startedAt={groupTime().start} endedAt={groupTime().end} running={pending()} tight />
           </span>
           <Collapsible.Arrow />
         </div>
