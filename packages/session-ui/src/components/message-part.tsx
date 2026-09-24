@@ -1040,6 +1040,12 @@ export function AssistantMessageDisplay(props: {
   )
 }
 
+function partTimeOf(part: ToolPart | undefined) {
+  const state = part?.state
+  if (!state || !("time" in state)) return undefined
+  return state.time as { start?: number; end?: number } | undefined
+}
+
 export function ContextToolGroup(props: {
   parts: ToolPart[]
   busy?: boolean
@@ -1055,6 +1061,33 @@ export function ContextToolGroup(props: {
       !!props.busy || props.parts.some((part) => part.state.status === "pending" || part.state.status === "running"),
   )
   const summary = createMemo(() => contextToolSummary(props.parts))
+  // Group time range: earliest start to latest end across parts that carry
+  // timestamps. The end only counts once every part finished; otherwise the
+  // badge keeps ticking live (see ToolElapsed).
+  const groupTime = createMemo(() => {
+    let start: number | undefined
+    let end: number | undefined
+    let allDone = props.parts.length > 0
+    for (const part of props.parts) {
+      const state = part.state
+      if (!state || !("time" in state)) {
+        allDone = false
+        continue
+      }
+      const time = state.time as { start?: number; end?: number } | undefined
+      if (time?.start === undefined) {
+        allDone = false
+        continue
+      }
+      start = start === undefined ? time.start : Math.min(start, time.start)
+      if (time.end === undefined) {
+        allDone = false
+      } else {
+        end = end === undefined ? time.end : Math.max(end, time.end)
+      }
+    }
+    return { start, end: allDone ? end : undefined }
+  })
   const handleOpenChange = (value: boolean) => {
     if (props.open === undefined) setLocalOpen(value)
     props.onOpenChange?.(value)
@@ -1105,6 +1138,7 @@ export function ContextToolGroup(props: {
                 fallback=""
               />
             </span>
+            <ToolElapsed startedAt={groupTime().start} endedAt={groupTime().end} running={pending()} tight />
           </span>
           <Collapsible.Arrow />
         </div>
@@ -1135,6 +1169,12 @@ export function ContextToolGroup(props: {
                                 {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
                               </For>
                             </Show>
+                            <ToolElapsed
+                              startedAt={partTimeOf(partAccessor())?.start}
+                              endedAt={partTimeOf(partAccessor())?.end}
+                              running={running()}
+                              tight
+                            />
                           </div>
                         </div>
                       </div>
