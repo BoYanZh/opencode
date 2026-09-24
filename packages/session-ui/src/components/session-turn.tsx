@@ -336,7 +336,7 @@ export function SessionTurn(
     if (working()) return null
     return showAssistantCopyPartID() ?? null
   })
-  const turnDurationMs = createMemo(() => {
+  const turnEndMs = createMemo(() => {
     const start = message()?.time.created
     if (typeof start !== "number") return undefined
 
@@ -349,6 +349,13 @@ export function SessionTurn(
 
     if (typeof end !== "number") return undefined
     if (end < start) return undefined
+    return end
+  })
+  const turnDurationMs = createMemo(() => {
+    const start = message()?.time.created
+    if (typeof start !== "number") return undefined
+    const end = turnEndMs()
+    if (end === undefined) return undefined
     return end - start
   })
   const assistantDerived = createMemo(() => {
@@ -368,12 +375,13 @@ export function SessionTurn(
     }
     return { visible, reason }
   })
-  const assistantVisible = createMemo(() => assistantDerived().visible)
   const reasoningHeading = createMemo(() => assistantDerived().reason)
+  // The thinking row stays mounted after the turn completes (with a frozen
+  // total) instead of disappearing with the first visible output; only
+  // errors and retries suppress it.
   const showThinking = createMemo(() => {
-    if (!working() || !!error()) return false
+    if (error()) return false
     if (status().type === "retry") return false
-    if (showReasoningSummaries()) return assistantVisible() === 0
     return true
   })
 
@@ -422,8 +430,13 @@ export function SessionTurn(
               </Show>
               <Show when={showThinking()}>
                 <div data-slot="session-turn-thinking">
-                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} />
-                  <ToolElapsed startedAt={message()?.time.created} running={showThinking()} tight />
+                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} active={working()} />
+                  <ToolElapsed
+                    startedAt={message()?.time.created}
+                    endedAt={turnEndMs()}
+                    running={working()}
+                    tight
+                  />
                   <Show when={!showReasoningSummaries()}>
                     <TextReveal
                       text={reasoningHeading()}
