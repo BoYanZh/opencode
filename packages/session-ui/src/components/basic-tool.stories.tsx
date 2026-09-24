@@ -156,3 +156,18 @@ export const CompletedElapsed = {
     children: "Result details",
   },
 }
+
+// Function triggers (e.g. the shell renderer) bypass the title branch, so
+// the badge needs its own slot there. Regression coverage for that path.
+export const FunctionTriggerElapsed = {
+  args: {
+    status: "running",
+    startedAt: Date.now() - 5000,
+    trigger: () => (
+      <div>
+        <span>Shell</span> <span>sleep 10</span>
+      </div>
+    ),
+    children: "Progress details",
+  },
+}

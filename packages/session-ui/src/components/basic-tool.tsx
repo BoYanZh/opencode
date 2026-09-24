@@ -234,7 +234,15 @@ export function BasicTool(props: BasicToolProps) {
       <div data-slot="basic-tool-tool-trigger-content">
         <div data-slot="basic-tool-tool-info">
           <Switch>
-            <Match when={dynamicTrigger !== undefined}>{dynamicTrigger}</Match>
+            <Match when={dynamicTrigger !== undefined}>
+              {dynamicTrigger}
+              {/* Function triggers (e.g. shell) render custom layouts that
+                  bypass the title branch below, so the badge needs its own
+                  slot here. Branches are exclusive: no double render. */}
+              <Show when={elapsed()}>
+                {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
+              </Show>
+            </Match>
             <Match when={isTriggerTitle(props.trigger) && props.trigger}>
               {(title) => (
                 <div data-slot="basic-tool-tool-info-structured">
@@ -290,7 +298,12 @@ export function BasicTool(props: BasicToolProps) {
                 </div>
               )}
             </Match>
-            <Match when={true}>{props.trigger as JSX.Element}</Match>
+            <Match when={true}>
+              {props.trigger as JSX.Element}
+              <Show when={elapsed()}>
+                {(e) => <span data-slot="basic-tool-tool-elapsed">{e()}</span>}
+              </Show>
+            </Match>
           </Switch>
         </div>
       </div>
