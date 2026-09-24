@@ -159,12 +159,14 @@ export const CompletedElapsed = {
 
 // Function triggers (e.g. the shell renderer) bypass the title branch, so
 // the badge needs its own slot there. Regression coverage for that path.
+// The inline-flex wrapper mirrors the real shell trigger layout so the
+// screenshot proves the badge sits inline after the command, not wrapped.
 export const FunctionTriggerElapsed = {
   args: {
     status: "running",
     startedAt: Date.now() - 5000,
     trigger: () => (
-      <div>
+      <div style={{ display: "inline-flex", "align-items": "center", gap: "8px" }}>
         <span>Shell</span> <span>sleep 10</span>
       </div>
     ),
