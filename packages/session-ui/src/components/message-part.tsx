@@ -2256,18 +2256,20 @@ ToolRegistry.register({
     })
 
     return (
-      <div data-component="edit-tool">
+      <div data-component="write-tool">
         <BasicTool
           {...props}
           icon="code-lines"
           defer={props.deferContent !== false}
+          hideElapsedBadge
           trigger={
-            <div data-component="edit-trigger">
+            <div data-component="write-trigger">
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t("ui.messagePart.title.edit")} active={pending()} />
+                    <TextShimmer text={i18n.t("ui.messagePart.title.write")} active={pending()} />
                   </span>
+                  <ToolElapsed startedAt={props.startedAt} endedAt={props.endedAt} running={pending()} tight />
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
                   </Show>
@@ -2328,6 +2330,7 @@ ToolRegistry.register({
           {...props}
           icon="code-lines"
           defer={props.deferContent !== false}
+          hideElapsedBadge
           trigger={
             <div data-component="write-trigger">
               <div data-slot="message-part-title-area">
@@ -2335,6 +2338,7 @@ ToolRegistry.register({
                   <span data-slot="message-part-title-text">
                     <TextShimmer text={i18n.t("ui.messagePart.title.write")} active={pending()} />
                   </span>
+                  <ToolElapsed startedAt={props.startedAt} endedAt={props.endedAt} running={pending()} tight />
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
                   </Show>
