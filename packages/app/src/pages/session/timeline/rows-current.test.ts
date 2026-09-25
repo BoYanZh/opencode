@@ -52,12 +52,12 @@ describe("current session timeline rows", () => {
     expect(result.activeMessageID).toBe("msg_3")
     expect(result.rows.map(TimelineRow.key)).toEqual([
       "user-message:msg_1",
-      "assistant-part:msg_1:msg_2:text:0",
       "thinking:msg_1",
+      "assistant-part:msg_1:msg_2:text:0",
       "turn-gap:msg_3",
       "user-message:msg_3",
-      "assistant-part:msg_3:msg_4:reasoning:0",
       "thinking:msg_3",
+      "assistant-part:msg_3:msg_4:reasoning:0",
     ])
   })
 
@@ -90,8 +90,8 @@ describe("current session timeline rows", () => {
     expect(result.activeMessageID).toBe("msg_shell")
     expect(result.rows.map(TimelineRow.key)).toEqual([
       "user-message:msg_shell",
-      "assistant-part:msg_shell:msg_shell:tool",
       "thinking:msg_shell",
+      "assistant-part:msg_shell:msg_shell:tool",
     ])
   })
 
@@ -131,12 +131,12 @@ describe("current session timeline rows", () => {
 
     expect(result.rows.map(TimelineRow.key)).toEqual([
       "user-message:msg_user_1",
-      "assistant-part:msg_user_1:msg_assistant_1:text:0",
       "thinking:msg_user_1",
+      "assistant-part:msg_user_1:msg_assistant_1:text:0",
       "turn-gap:msg_user_2",
       "user-message:msg_user_2",
-      "assistant-part:msg_user_2:msg_assistant_2:text:0",
       "thinking:msg_user_2",
+      "assistant-part:msg_user_2:msg_assistant_2:text:0",
     ])
   })
 
@@ -248,6 +248,6 @@ describe("current session timeline rows", () => {
       normalized.messages.filter((message) => message.role === "user"),
     )
 
-    expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart", "Thinking"])
+    expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "Thinking", "AssistantPart"])
   })
 })

@@ -168,32 +168,11 @@ export namespace Timeline {
       )
     }
 
-    let assistantGroupIndex = 0
-    assistantItems.forEach((item) => {
-      if (item.type === "interrupted") {
-        rows.push(
-          new TimelineRow.TurnDivider({
-            userMessageID: userMessage.id,
-            label: "interrupted",
-          }),
-        )
-        return
-      }
-
-      rows.push(
-        new TimelineRow.AssistantPart({
-          userMessageID: userMessage.id,
-          group: item.group,
-          previousAssistantPart: assistantGroupIndex > 0,
-        }),
-      )
-      assistantGroupIndex += 1
-    })
-
     // The thinking row stays mounted after the turn completes (with a frozen
     // total) instead of vanishing with the first visible output; only errors
     // suppress it. While the turn runs it ticks live; once done the end is
-    // the latest assistant completion.
+    // the latest assistant completion. It sits above the assistant output:
+    // thinking is the cause, the reply is the effect.
     const thinkingActive = isActive && status === "busy" && !error
     const turnStart = userMessage.time.created
     const turnEnd = assistantMessages.reduce<number | undefined>((max, message) => {
@@ -218,6 +197,28 @@ export namespace Timeline {
         }),
       )
     }
+
+    let assistantGroupIndex = 0
+    assistantItems.forEach((item) => {
+      if (item.type === "interrupted") {
+        rows.push(
+          new TimelineRow.TurnDivider({
+            userMessageID: userMessage.id,
+            label: "interrupted",
+          }),
+        )
+        return
+      }
+
+      rows.push(
+        new TimelineRow.AssistantPart({
+          userMessageID: userMessage.id,
+          group: item.group,
+          previousAssistantPart: assistantGroupIndex > 0,
+        }),
+      )
+      assistantGroupIndex += 1
+    })
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
 
