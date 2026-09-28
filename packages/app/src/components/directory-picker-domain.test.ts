@@ -20,7 +20,10 @@ import {
   pickerParent,
   pickerRoot,
   pickerAbsoluteInput,
+  pickerDisplaySeparator,
   resolvePickerStart,
+  stripPickerTrailingSeparator,
+  withPickerSeparator,
 } from "./directory-picker-domain"
 
 test("maps server directory entries into Pierre paths", () => {
@@ -347,4 +350,18 @@ test("returns absolute directories and relative files", () => {
   expect(selectedTreePath("/home/luke/repo", "src/index.ts", "file")).toBe("src/index.ts")
   expect(selectedTreePath("/home/luke/repo/src", "index.ts", "file", "/home/luke/repo")).toBe("src/index.ts")
   expect(selectedTreePath("/home/luke/repo", "src/", "file")).toBeUndefined()
+})
+
+test("completes Windows display paths with a backslash", () => {
+  expect(pickerDisplaySeparator("C:\\Users\\boyanzh\\Desktop")).toBe("\\")
+  expect(pickerDisplaySeparator("/home/luke/repos")).toBe("/")
+  expect(withPickerSeparator("C:\\Users\\boyanzh\\Desktop")).toBe("C:\\Users\\boyanzh\\Desktop\\")
+  expect(withPickerSeparator("C:\\Users\\boyanzh\\Desktop\\")).toBe("C:\\Users\\boyanzh\\Desktop\\")
+  expect(withPickerSeparator("C:\\Users\\boyanzh\\Desktop/")).toBe("C:\\Users\\boyanzh\\Desktop/")
+  expect(withPickerSeparator("/home/luke/repos")).toBe("/home/luke/repos/")
+  expect(withPickerSeparator("/home/luke/repos/")).toBe("/home/luke/repos/")
+  expect(withPickerSeparator("")).toBe("")
+  expect(stripPickerTrailingSeparator("C:\\Users\\boyanzh\\Desktop\\")).toBe("C:\\Users\\boyanzh\\Desktop")
+  expect(stripPickerTrailingSeparator("C:\\Users\\boyanzh\\Desktop/")).toBe("C:\\Users\\boyanzh\\Desktop")
+  expect(stripPickerTrailingSeparator("/home/luke/repos/")).toBe("/home/luke/repos")
 })

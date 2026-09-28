@@ -12,7 +12,9 @@ import {
   cleanPickerInput,
   createDirectorySearch,
   displayPickerPath,
+  pickerDisplaySeparator,
   resolvePickerStart,
+  withPickerSeparator,
 } from "./directory-picker-domain"
 import type { Path } from "@opencode-ai/sdk/v2/client"
 
@@ -34,11 +36,7 @@ type Row = {
 function toRow(absolute: string, home: string, group: Row["group"]): Row {
   const full = displayPickerPath(absolute, "", "")
   const tilde = displayPickerPath(full, "~", home)
-  const withSlash = (value: string) => {
-    if (!value) return ""
-    if (value.endsWith("/")) return value
-    return value + "/"
-  }
+  const withSlash = (value: string) => withPickerSeparator(value)
 
   const search = Array.from(
     new Set([full, withSlash(full), tilde, withSlash(tilde), getFilename(full)].filter(Boolean)),
@@ -168,7 +166,7 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
           e.stopPropagation()
 
           const value = displayPickerPath(item.absolute, filter(), home())
-          list?.setFilter(value.endsWith("/") ? value : value + "/")
+          list?.setFilter(withPickerSeparator(value))
         }}
         onSelect={(path) => {
           if (!path) return
@@ -199,7 +197,7 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
                     {getDirectory(path)}
                   </span>
                   <span class="text-text-strong whitespace-nowrap">{getFilename(path)}</span>
-                  <span class="text-text-weak whitespace-nowrap">/</span>
+                  <span class="text-text-weak whitespace-nowrap">{pickerDisplaySeparator(path)}</span>
                 </div>
               </div>
             </div>

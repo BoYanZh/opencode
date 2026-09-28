@@ -334,6 +334,19 @@ export function displayPickerPath(path: string, input: string, home: string) {
   return pickerTilde(value, home) || value
 }
 
+export function pickerDisplaySeparator(value: string) {
+  return value.includes("\\") ? "\\" : "/"
+}
+
+export function withPickerSeparator(value: string) {
+  if (!value || value.endsWith("/") || value.endsWith("\\")) return value
+  return value + pickerDisplaySeparator(value)
+}
+
+export function stripPickerTrailingSeparator(value: string) {
+  return value.replace(/[/\\]+$/, "")
+}
+
 export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string | undefined; home: () => string }) {
   const cache = new Map<string, Promise<Array<{ name: string; absolute: string }>>>()
   let current = 0

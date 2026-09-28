@@ -15,6 +15,7 @@ import {
   advanceTreePreload,
   nextSuggestionIndex,
   nextTreeScrollTop,
+  pickerDisplaySeparator,
   pickerFileSearchQuery,
   pickerAbsoluteInput,
   pickerMode,
@@ -27,6 +28,8 @@ import {
   pickerParent,
   pickerRoot,
   resolvePickerStart,
+  stripPickerTrailingSeparator,
+  withPickerSeparator,
 } from "./directory-picker-domain"
 import "./dialog-select-directory-v2.css"
 import { DividerV2 } from "@opencode-ai/ui/v2/divider-v2"
@@ -92,8 +95,8 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
   const search = createDirectorySearch({ sdk, home, base: () => root() || start() })
   const [suggestions] = createResource(input, async (value) => {
     const cleaned = cleanPickerInput(value)
-    const typed = cleaned.replace(/\/+$/, "")
-    const current = displayPickerPath(root(), value, home()).replace(/\/+$/, "")
+    const typed = stripPickerTrailingSeparator(cleaned)
+    const current = stripPickerTrailingSeparator(displayPickerPath(root(), value, home()))
     if (!cleaned || (root() && typed === current)) return { query: value, items: [] }
     const directories = (await search(value)).map((absolute) => ({ absolute, type: "directory" as const }))
     if (!policy.includeFiles) return { query: value, items: directories.slice(0, 5) }
@@ -120,7 +123,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
   const currentSuggestions = createMemo(() => currentPickerSuggestions(suggestions(), input()))
 
   async function load(path: string, generation: number, eager = false) {
-    const key = path.replace(/\/+$/, "")
+    const key = stripPickerTrailingSeparator(path)
     setError(false)
     const absolute = absoluteTreePath(root(), key)
     const existing = listings.get(key)
@@ -179,7 +182,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
     const match = items[activeSuggestion()] ?? items[0]
     if (!match) return
     const value = displayPickerPath(match.absolute, input(), home())
-    setInput(match.type === "directory" && !value.endsWith("/") ? value + "/" : value)
+    setInput(match.type === "directory" ? withPickerSeparator(value) : value)
     if (match.type === "file") {
       setSelected(policy.selection(root(), pickerFileSearchQuery(root(), match.absolute, home())) ?? "")
       setSuggestionsOpen(false)
@@ -339,7 +342,9 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
                     onClick={() => chooseSuggestion(suggestion)}
                   >
                     {displayPickerPath(suggestion.absolute, input(), home())}
-                    {suggestion.type === "directory" ? "/" : ""}
+                    {suggestion.type === "directory"
+                      ? pickerDisplaySeparator(displayPickerPath(suggestion.absolute, input(), home()))
+                      : ""}
                   </button>
                 )}
               </For>
