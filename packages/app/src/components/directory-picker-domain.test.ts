@@ -20,6 +20,7 @@ import {
   pickerParent,
   pickerRoot,
   pickerAbsoluteInput,
+  pickerDirname,
   pickerDisplaySeparator,
   resolvePickerStart,
   stripPickerTrailingSeparator,
@@ -364,4 +365,14 @@ test("completes Windows display paths with a backslash", () => {
   expect(stripPickerTrailingSeparator("C:\\Users\\boyanzh\\Desktop\\")).toBe("C:\\Users\\boyanzh\\Desktop")
   expect(stripPickerTrailingSeparator("C:\\Users\\boyanzh\\Desktop/")).toBe("C:\\Users\\boyanzh\\Desktop")
   expect(stripPickerTrailingSeparator("/home/luke/repos/")).toBe("/home/luke/repos")
+})
+
+test("renders candidate rows with native separators", () => {
+  expect(pickerDirname("C:\\Users\\boyanzh\\.agents")).toBe("C:\\Users\\boyanzh\\")
+  expect(pickerDirname("C:\\Users\\boyanzh\\Desktop\\Programs\\repos")).toBe("C:\\Users\\boyanzh\\Desktop\\Programs\\")
+  expect(pickerDirname("C:/Users/boyanzh/.agents")).toBe("C:/Users/boyanzh/")
+  expect(pickerDirname("/home/luke/repos")).toBe("/home/luke/")
+  expect(pickerDirname("repos")).toBe("")
+  expect(pickerDirname("C:\\")).toBe("")
+  expect(pickerDirname("")).toBe("")
 })

@@ -347,6 +347,14 @@ export function stripPickerTrailingSeparator(value: string) {
   return value.replace(/[/\\]+$/, "")
 }
 
+export function pickerDirname(path: string) {
+  const trimmed = stripPickerTrailingSeparator(path ?? "")
+  if (!trimmed) return ""
+  const separator = pickerDisplaySeparator(trimmed)
+  const head = trimmed.split(/[/\\]/).slice(0, -1).join(separator)
+  return head ? head + separator : ""
+}
+
 export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string | undefined; home: () => string }) {
   const cache = new Map<string, Promise<Array<{ name: string; absolute: string }>>>()
   let current = 0

@@ -3,7 +3,7 @@ import { Dialog } from "@opencode-ai/ui/dialog"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { List } from "@opencode-ai/ui/list"
 import type { ListRef } from "@opencode-ai/ui/list"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
+import { getFilename } from "@opencode-ai/core/util/path"
 import { createMemo, createResource, createSignal } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
@@ -12,6 +12,7 @@ import {
   cleanPickerInput,
   createDirectorySearch,
   displayPickerPath,
+  pickerDirname,
   pickerDisplaySeparator,
   resolvePickerStart,
   withPickerSeparator,
@@ -194,7 +195,7 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
                 <FileIcon node={{ path: item.absolute, type: "directory" }} class="shrink-0 size-4" />
                 <div class="flex items-center text-14-regular min-w-0">
                   <span class="text-text-weak whitespace-nowrap overflow-hidden overflow-ellipsis truncate min-w-0">
-                    {getDirectory(path)}
+                    {pickerDirname(path)}
                   </span>
                   <span class="text-text-strong whitespace-nowrap">{getFilename(path)}</span>
                   <span class="text-text-weak whitespace-nowrap">{pickerDisplaySeparator(path)}</span>
