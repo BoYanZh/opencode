@@ -210,6 +210,26 @@ const layer = Layer.effect(
         )
     })
 
+    // A folder rename or move keeps the project ID (git remote/root commit)
+    // while the stored worktree points at a path that no longer exists.
+    // Follow the live directory in that case only, so parallel checkouts
+    // that still exist never flip the canonical worktree.
+    const renamedWorktree = Effect.fnUntraced(function* (input: {
+      row: boolean
+      projectID: ProjectV2.ID
+      previous: string
+      current: string
+    }) {
+      if (!input.row) return undefined
+      if (input.projectID === ProjectV2.ID.global) return undefined
+      if (input.previous === input.current) return undefined
+      const previousExists = yield* fs.exists(input.previous).pipe(Effect.orDie)
+      if (previousExists) return undefined
+      const currentExists = yield* fs.exists(input.current).pipe(Effect.orDie)
+      if (!currentExists) return undefined
+      return input.current
+    })
+
     const fromDirectory = Effect.fn("Project.fromDirectory")(function* (directory: string) {
       yield* Effect.logInfo("fromDirectory", { directory })
 
@@ -232,9 +252,15 @@ const layer = Layer.effect(
 
       if (flags.experimentalIconDiscovery) yield* discover(existing).pipe(Effect.ignore, Effect.forkIn(scope))
 
+      const renamed = yield* renamedWorktree({ row: !!row, projectID, previous: existing.worktree, current: data.directory })
+      if (renamed)
+        yield* projectDirectories
+          .remove({ projectID, directory: AbsolutePath.make(existing.worktree) })
+          .pipe(Effect.ignore)
+
       const result: Info = {
         ...existing,
-        worktree: projectID === ProjectV2.ID.global ? worktree : existing.worktree,
+        worktree: projectID === ProjectV2.ID.global ? worktree : (renamed ?? existing.worktree),
         vcs: data.vcs?.type ?? fakeVcs,
         time: { ...existing.time, updated: Date.now() },
       }

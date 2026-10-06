@@ -1,6 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Project } from "@/project/project"
 import { $ } from "bun"
+import { rename } from "node:fs/promises"
 import path from "path"
 import { tmpdirScoped } from "../fixture/fixture"
 import { GlobalBus } from "../../src/bus/global"
@@ -232,6 +233,40 @@ describe("Project.fromDirectory", () => {
         (yield* db.select().from(WorkspaceTable).where(eq(WorkspaceTable.id, workspaceID)).get().pipe(Effect.orDie))
           ?.project_id,
       ).toBe(remoteID)
+    }),
+  )
+
+  it.live("migrates worktree when the folder was renamed", () =>
+    Effect.gen(function* () {
+      const projects = yield* Project.Service
+      const tmp = yield* tmpdirScoped({ git: true })
+      yield* Effect.promise(() => $`git remote add origin git@github.com:acme/renamed.git`.cwd(tmp).quiet())
+
+      const first = yield* projects.fromDirectory(tmp)
+      expect(first.project.worktree).toBe(tmp)
+
+      const moved = `${tmp}-renamed`
+      yield* Effect.promise(() => rename(tmp, moved))
+
+      const second = yield* projects.fromDirectory(moved)
+      expect(second.project.id).toBe(first.project.id)
+      expect(second.project.worktree).toBe(moved)
+      expect(second.project.sandboxes).not.toContain(moved)
+    }),
+  )
+
+  it.live("keeps worktree when parallel checkouts still exist", () =>
+    Effect.gen(function* () {
+      const projects = yield* Project.Service
+      const tmp = yield* tmpdirScoped({ git: true })
+      yield* Effect.promise(() => $`git remote add origin git@github.com:acme/kept.git`.cwd(tmp).quiet())
+
+      const first = yield* projects.fromDirectory(tmp)
+      expect(first.project.worktree).toBe(tmp)
+
+      const second = yield* projects.fromDirectory(tmp)
+      expect(second.project.id).toBe(first.project.id)
+      expect(second.project.worktree).toBe(tmp)
     }),
   )
 })
