@@ -241,7 +241,7 @@ function createServerNotificationState(input: {
   )
   const [index, setIndex] = createStore<NotificationIndex>(buildNotificationIndex(store.list))
 
-  const meta = { pruned: false, disposed: false }
+  const meta = { pruned: false, disposed: false, healed: false }
 
   const updateUnseen = (scope: "session" | "project", key: string, unseen: Notification[]) => {
     setIndex(scope, "unseen", key, unseen)
@@ -312,6 +312,25 @@ function createServerNotificationState(input: {
       if (keep.has(notification)) appendToIndex(notification)
       removed.forEach((n) => removeFromIndex(n))
       setStore("list", list)
+    })
+  }
+
+  const markSessionViewed = (session: string) => {
+    const unseen = index.session.unseen[session] ?? empty
+    if (!unseen.length) return
+
+    const projects = [
+      ...new Set(unseen.flatMap((notification) => (notification.directory ? [notification.directory] : []))),
+    ]
+    batch(() => {
+      setStore("list", (n) => n.session === session && !n.viewed, "viewed", true)
+      updateUnseen("session", session, [])
+      projects.forEach((directory) => {
+        const next = (index.project.unseen[directory] ?? empty).filter(
+          (notification) => notification.session !== session,
+        )
+        updateUnseen("project", directory, next)
+      })
     })
   }
 
@@ -399,6 +418,12 @@ function createServerNotificationState(input: {
 
   const unsub = serverSDK().event.listen((e) => {
     const event = e.details
+    if (event.type === "session.deleted") {
+      const props = event.properties as { sessionID?: string; info?: { id?: string } }
+      const deletedID = props.sessionID ?? props.info?.id
+      if (deletedID) markSessionViewed(deletedID)
+      return
+    }
     if (event.type !== "session.idle" && event.type !== "session.error") return
 
     const directory = e.name
@@ -412,6 +437,23 @@ function createServerNotificationState(input: {
   onCleanup(() => {
     meta.disposed = true
     unsub()
+  })
+
+  createEffect(() => {
+    if (!ready() || meta.healed) return
+    meta.healed = true
+    const ids = Object.keys(index.session.unseen).filter((id) => (index.session.unseen[id]?.length ?? 0) > 0)
+    ids.forEach((id) => {
+      const directory = index.session.unseen[id]?.[0]?.directory
+      if (!directory) {
+        markSessionViewed(id)
+        return
+      }
+      void lookup(directory, id === "global" ? undefined : id).then((session) => {
+        if (meta.disposed) return
+        if (!session) markSessionViewed(id)
+      })
+    })
   })
 
   return {
@@ -432,24 +474,7 @@ function createServerNotificationState(input: {
       unseenSessionIDs() {
         return Object.keys(index.session.unseen).filter((id) => (index.session.unseen[id]?.length ?? 0) > 0)
       },
-      markViewed(session: string) {
-        const unseen = index.session.unseen[session] ?? empty
-        if (!unseen.length) return
-
-        const projects = [
-          ...new Set(unseen.flatMap((notification) => (notification.directory ? [notification.directory] : []))),
-        ]
-        batch(() => {
-          setStore("list", (n) => n.session === session && !n.viewed, "viewed", true)
-          updateUnseen("session", session, [])
-          projects.forEach((directory) => {
-            const next = (index.project.unseen[directory] ?? empty).filter(
-              (notification) => notification.session !== session,
-            )
-            updateUnseen("project", directory, next)
-          })
-        })
-      },
+      markViewed: markSessionViewed,
     },
     project: {
       all(directory: string) {
