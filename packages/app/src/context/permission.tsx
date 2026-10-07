@@ -152,6 +152,20 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       ready: () => selected().ready(),
       ensureServerState: (key: ServerConnection.Key) => ensure(key).api,
       currentServerState: () => selected().api,
+      attentionSessionIDs(key: ServerConnection.Key) {
+        const st = ensure(key)
+        const data = st.sync.session.data
+        const questions = Object.keys(data.question).filter((id) => (data.question[id]?.length ?? 0) > 0)
+        const permissions = Object.keys(data.permission).filter((id) => {
+          const items = data.permission[id] ?? []
+          if (items.length === 0) return false
+          return items.some((item) => {
+            const directory = st.sync.session.lineage.peek(id)?.session.directory
+            return !st.api.autoResponds(item, directory)
+          })
+        })
+        return [...new Set([...questions, ...permissions])]
+      },
       respond(input: Parameters<PermissionRespondFn>[0]) {
         selected().respond(input)
       },

@@ -187,9 +187,19 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
       return ensure(ServerConnection.key(conn))
     }
 
+    const selectedKey = () => {
+      const list = global.servers.list()
+      const key = activeServer()
+      if (list.some((conn) => ServerConnection.key(conn) === key)) return key
+      const conn = list.find((conn) => ServerConnection.key(conn) === server.key) ?? list[0]
+      if (!conn) throw new Error("Notification server not found")
+      return ServerConnection.key(conn)
+    }
+
     return {
       ready: () => selected().ready(),
       ensureServerState: ensure,
+      selectedKey,
       session: {
         all: (session: string) => selected().session.all(session),
         unseen: (session: string) => selected().session.unseen(session),
