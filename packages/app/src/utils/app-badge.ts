@@ -9,10 +9,6 @@ export function supportsAppBadge() {
   return typeof navigator === "object" && typeof navigator.setAppBadge === "function"
 }
 
-export function countDistinctSessions(idsPerServer: string[][]) {
-  return new Set(idsPerServer.flat()).size
-}
-
 export function syncAppBadge(count: number) {
   if (!supportsAppBadge()) return
   if (count > 0) {
