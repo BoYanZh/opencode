@@ -49,6 +49,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { AppBadgeSync } from "@/components/app-badge-sync"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
@@ -570,6 +571,7 @@ export function AppInterface(props: {
   const ServerShell = (shellProps: ParentProps) => (
     <QueryProvider>
       <SharedProviders>
+        <AppBadgeSync />
         {props.children}
         {shellProps.children}
       </SharedProviders>

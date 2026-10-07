@@ -195,6 +195,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         unseen: (session: string) => selected().session.unseen(session),
         unseenCount: (session: string) => selected().session.unseenCount(session),
         unseenHasError: (session: string) => selected().session.unseenHasError(session),
+        unseenSessionIDs: () => selected().session.unseenSessionIDs(),
         markViewed: (session: string) => selected().session.markViewed(session),
       },
       project: {
@@ -427,6 +428,9 @@ function createServerNotificationState(input: {
       },
       unseenHasError(session: string) {
         return index.session.unseenHasError[session] ?? false
+      },
+      unseenSessionIDs() {
+        return Object.keys(index.session.unseen).filter((id) => (index.session.unseen[id]?.length ?? 0) > 0)
       },
       markViewed(session: string) {
         const unseen = index.session.unseen[session] ?? empty
