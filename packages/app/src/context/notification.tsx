@@ -482,7 +482,11 @@ function createServerNotificationState(input: {
         return index.session.unseenHasError[session] ?? false
       },
       unseenSessionIDs() {
-        return Object.keys(index.session.unseen).filter((id) => (index.session.unseen[id]?.length ?? 0) > 0)
+        // Session-less ("global") errors have no session UI to view or clear them,
+        // so counting them here would stick the badge with no way to dismiss it.
+        return Object.keys(index.session.unseen).filter(
+          (id) => id !== "global" && (index.session.unseen[id]?.length ?? 0) > 0,
+        )
       },
       markViewed: markSessionViewed,
     },
