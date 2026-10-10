@@ -1127,6 +1127,7 @@ export interface ToolProps {
   tool: string
   sessionID?: string
   output?: string
+  time?: SessionMessageAssistantTool["time"]
   status?: string
   hideDetails?: boolean
   defaultOpen?: boolean
@@ -1390,6 +1391,7 @@ export function ToolDisplay(
 
               return (
                 <ToolErrorCard
+                  time={props.time}
                   tool={props.tool}
                   error={error()}
                   title={
@@ -1853,6 +1855,7 @@ ToolRegistry.register({
           <BasicTool
             icon="task"
             status={props.status}
+            time={props.time}
             trigger={trigger()}
             hideDetails
             triggerAsLink
