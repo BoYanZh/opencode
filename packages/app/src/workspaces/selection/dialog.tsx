@@ -29,6 +29,10 @@ import {
   listPickerDirectory,
   pickerRelativePath,
   pickerAbsolutePath,
+  resolvePickerStart,
+  pickerDisplaySeparator,
+  withPickerSeparator,
+  stripPickerTrailingSeparator,
 } from "./domain"
 import "./dialog.css"
 import { Divider } from "@opencode/ui/divider"
@@ -85,21 +89,22 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     return current ? { directory: current.directory } : undefined
   })
 
-  const start = createMemo(
-    () =>
-      props.start ||
-      sync.data.path.home ||
-      props.location?.directory ||
-      sync.data.path.directory ||
-      fallbackPath.latest?.directory,
+  const start = createMemo(() =>
+    resolvePickerStart({
+      start: props.start,
+      locationDirectory: location()?.directory,
+      serverDirectory: sync.data.path.directory,
+      home: sync.data.path.home,
+      fallbackDirectory: fallbackPath.latest?.directory,
+    }),
   )
 
   const search = createDirectorySearch({ sdk, home, location, base: () => root() || start() })
 
   const [suggestions] = createResource(input, async (value) => {
     const cleaned = cleanPickerInput(value)
-    const typed = cleaned.replace(/\/+$/, "")
-    const current = displayPickerPath(root(), value, home()).replace(/\/+$/, "")
+    const typed = stripPickerTrailingSeparator(cleaned)
+    const current = stripPickerTrailingSeparator(displayPickerPath(root(), value, home()))
 
     if (!cleaned || (root() && typed === current)) return { query: value, items: [] }
     const directories = (await search(value)).map((absolute) => ({ absolute, type: "directory" as const }))
@@ -204,7 +209,7 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
 
     if (!match) return
     const value = displayPickerPath(match.absolute, input(), home())
-    setInput(match.type === "directory" && !value.endsWith("/") ? value + "/" : value)
+    setInput(match.type === "directory" ? withPickerSeparator(value) : value)
 
     if (match.type === "file") {
       setSelected(policy.selection(root(), pickerFileSearchQuery(root(), match.absolute, home())) ?? "")
@@ -368,20 +373,24 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
           <Show when={suggestionsOpen() && currentSuggestions().length > 0}>
             <div id="directory-picker-suggestions" role="listbox" class="directory-picker-suggestions">
               <For each={currentSuggestions()}>
-                {(suggestion, index) => (
-                  <button
-                    id={`directory-picker-suggestion-${index()}`}
-                    data-directory-path={suggestion.absolute}
-                    role="option"
-                    aria-selected={index() === activeSuggestion()}
-                    data-active={index() === activeSuggestion() ? "" : undefined}
-                    onPointerMove={() => setActiveSuggestion(index())}
-                    onClick={() => chooseSuggestion(suggestion)}
-                  >
-                    {displayPickerPath(suggestion.absolute, input(), home())}
-                    {suggestion.type === "directory" ? "/" : ""}
-                  </button>
-                )}
+                {(suggestion, index) => {
+                  const display = () => displayPickerPath(suggestion.absolute, input(), home())
+
+                  return (
+                    <button
+                      id={`directory-picker-suggestion-${index()}`}
+                      data-directory-path={suggestion.absolute}
+                      role="option"
+                      aria-selected={index() === activeSuggestion()}
+                      data-active={index() === activeSuggestion() ? "" : undefined}
+                      onPointerMove={() => setActiveSuggestion(index())}
+                      onClick={() => chooseSuggestion(suggestion)}
+                    >
+                      {display()}
+                      {suggestion.type === "directory" ? pickerDisplaySeparator(display()) : ""}
+                    </button>
+                  )
+                }}
               </For>
             </div>
           </Show>

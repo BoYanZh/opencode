@@ -376,6 +376,30 @@ function pickerTilde(absolute: string, home: string) {
   return ""
 }
 
+export function resolvePickerStart(input: {
+  start?: string
+  locationDirectory?: string
+  serverDirectory?: string
+  home?: string
+  fallbackDirectory?: string
+}) {
+  return input.start || input.locationDirectory || input.serverDirectory || input.home || input.fallbackDirectory
+}
+
+export function pickerDisplaySeparator(value: string) {
+  return value.includes("\\") ? "\\" : "/"
+}
+
+export function withPickerSeparator(value: string) {
+  if (!value || value.endsWith("/") || value.endsWith("\\")) return value
+
+  return value + pickerDisplaySeparator(value)
+}
+
+export function stripPickerTrailingSeparator(value: string) {
+  return value.replace(/[/\\]+$/, "")
+}
+
 export function displayPickerPath(path: string, input: string, home: string) {
   const value = trimPickerPath(path)
 
