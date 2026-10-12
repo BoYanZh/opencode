@@ -376,16 +376,6 @@ function pickerTilde(absolute: string, home: string) {
   return ""
 }
 
-export function resolvePickerStart(input: {
-  start?: string
-  locationDirectory?: string
-  serverDirectory?: string
-  home?: string
-  fallbackDirectory?: string
-}) {
-  return input.start || input.locationDirectory || input.serverDirectory || input.home || input.fallbackDirectory
-}
-
 export function pickerDisplaySeparator(value: string) {
   return value.includes("\\") ? "\\" : "/"
 }

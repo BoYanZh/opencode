@@ -29,7 +29,6 @@ import {
   listPickerDirectory,
   pickerRelativePath,
   pickerAbsolutePath,
-  resolvePickerStart,
   pickerDisplaySeparator,
   withPickerSeparator,
   stripPickerTrailingSeparator,
@@ -89,14 +88,13 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
     return current ? { directory: current.directory } : undefined
   })
 
-  const start = createMemo(() =>
-    resolvePickerStart({
-      start: props.start,
-      locationDirectory: location()?.directory,
-      serverDirectory: sync.data.path.directory,
-      home: sync.data.path.home,
-      fallbackDirectory: fallbackPath.latest?.directory,
-    }),
+  const start = createMemo(
+    () =>
+      props.start ||
+      sync.data.path.home ||
+      props.location?.directory ||
+      sync.data.path.directory ||
+      fallbackPath.latest?.directory,
   )
 
   const search = createDirectorySearch({ sdk, home, location, base: () => root() || start() })
