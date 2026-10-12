@@ -19,7 +19,6 @@ import {
   pickerParent,
   pickerRoot,
   pickerAbsoluteInput,
-  resolvePickerStart,
   pickerDisplaySeparator,
   withPickerSeparator,
   stripPickerTrailingSeparator,
@@ -466,45 +465,6 @@ test("wraps autocomplete keyboard navigation", () => {
   expect(nextSuggestionIndex(3, 1, 4)).toBe(0)
   expect(nextSuggestionIndex(0, -1, 4)).toBe(3)
   expect(nextSuggestionIndex(0, 1, 0)).toBe(-1)
-})
-
-test("prefers the server directory over home for the picker start", () => {
-  expect(
-    resolvePickerStart({
-      locationDirectory: undefined,
-      serverDirectory: "C:/repo/apex",
-      home: "C:/Users/luke",
-      fallbackDirectory: undefined,
-    }),
-  ).toBe("C:/repo/apex")
-})
-
-test("prefers the workspace location over the server directory for the picker start", () => {
-  expect(
-    resolvePickerStart({
-      locationDirectory: "E:/work/apex",
-      serverDirectory: "C:/repo/apex",
-      home: "C:/Users/luke",
-    }),
-  ).toBe("E:/work/apex")
-})
-
-test("an explicit start wins over every picker default", () => {
-  expect(
-    resolvePickerStart({
-      start: "D:/custom",
-      locationDirectory: "E:/work/apex",
-      serverDirectory: "C:/repo/apex",
-      home: "C:/Users/luke",
-      fallbackDirectory: "C:/fallback",
-    }),
-  ).toBe("D:/custom")
-})
-
-test("falls back to home and then the cached directory for the picker start", () => {
-  expect(resolvePickerStart({ home: "C:/Users/luke" })).toBe("C:/Users/luke")
-  expect(resolvePickerStart({ fallbackDirectory: "C:/fallback" })).toBe("C:/fallback")
-  expect(resolvePickerStart({})).toBeFalsy()
 })
 
 test.each([
