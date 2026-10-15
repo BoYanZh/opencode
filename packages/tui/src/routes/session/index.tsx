@@ -2966,6 +2966,14 @@ function ShellDisplay(props: {
   const collapsed = createMemo(() => collapseShellOutput(input(), output(), maxLines, maxChars()))
   const limitedInput = createMemo(() => (expanded() ? input() : collapsed().input))
   const limitedOutput = createMemo(() => (expanded() ? output() : collapsed().output))
+  const elapsed = createToolElapsed(
+    () => props.part?.time,
+    () => isRunning() || props.status === "running",
+  )
+  const elapsedText = createMemo(() => {
+    const value = elapsed()
+    return value === undefined ? undefined : Locale.duration(value)
+  })
   const expandable = createMemo(() => Boolean(props.shellID) || collapsed().overflow)
   const toggle = () => {
     const next = !expanded()
@@ -2995,6 +3003,7 @@ function ShellDisplay(props: {
                 maxHeight={expanded() ? undefined : 2}
               >
                 {limitedInput()}
+                <Show when={elapsedText()}>{(value) => <span>{` · ${value()}`}</span>}</Show>
               </text>
             }
           >
@@ -3008,6 +3017,7 @@ function ShellDisplay(props: {
                 minWidth={0}
               >
                 {limitedInput()}
+                <Show when={elapsedText()}>{(value) => <span>{` · ${value()}`}</span>}</Show>
               </text>
             </box>
           </Show>
