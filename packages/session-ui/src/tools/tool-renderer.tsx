@@ -2280,8 +2280,7 @@ ToolRegistry.register({
     return (
       <div data-component="apply-patch-tool">
         <Show when={files().length > 0} fallback={<FileTool {...props} title={title()} count={0} />}>
-          <FileTool {...props} title={title()} count={files().length}>
-            <FileAccordionGroup>
+          <FileAccordionGroup>
               <Index each={files()}>
                 {(file) => {
                   const value = () => file().path
@@ -2338,6 +2337,7 @@ ToolRegistry.register({
                                 />
                               </Match>
                             </Switch>
+                            <ToolElapsed time={props.time} running={props.status === "running"} />
                             <Icon name="chevron-grabber-vertical" size="small" />
                           </div>
                         </div>
@@ -2364,7 +2364,6 @@ ToolRegistry.register({
                 }}
               </Index>
             </FileAccordionGroup>
-          </FileTool>
         </Show>
       </div>
     )
