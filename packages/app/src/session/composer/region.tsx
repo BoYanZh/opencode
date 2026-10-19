@@ -1,5 +1,6 @@
 import type { SessionUserActions } from "@opencode/session-ui/message"
 import { getFilename, sameDirectory } from "@opencode/util/path"
+import { base64Encode } from "@opencode/util/encode"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner } from "@opencode/ui/scroll-view"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -26,6 +27,7 @@ import type { SessionScreenLayout } from "../screen-layout"
 import { syncPromptModel } from "../session-model-helpers"
 import type { SessionTimelineInteraction } from "../timeline/interaction"
 import { createSessionRevert } from "../revert"
+import { extractPromptContext, extractPromptFromMessage } from "@/composer/prompt"
 import { SessionComposerRegion } from "./session-composer-region"
 import { createSessionComposerController, type SessionComposerController } from "./controller"
 import { SessionQueuePanel } from "./queue-panel"
@@ -194,6 +196,33 @@ export function createActiveSessionRegion(input: {
     showToast({ title: language.t("common.requestFailed") })
   }
 
+  const forkMessage: NonNullable<SessionUserActions["fork"]> = async ({ sessionID, messageID }) => {
+    const message = data.session.message.get(sessionID, messageID)
+
+    if (!message || message.type !== "user") {
+      notifyFailed()
+
+      return
+    }
+    const restored = extractPromptFromMessage(message, {
+      directory: location().directory,
+      attachmentName: language.t("common.attachment"),
+    })
+    const context = extractPromptContext(message, { directory: location().directory })
+    const dir = base64Encode(location().directory)
+
+    await server.api.session
+      .fork({ sessionID, before: messageID })
+      .then((forked) => {
+        data.session.remember(forked)
+        const target = prompt.capture({ dir, id: forked.id })
+        target.set(restored)
+        target.context.replace([...context.comments, ...context.files])
+        navigate(sessionHref(requireServerKey(input.session.identity.params.serverKey), forked.id))
+      })
+      .catch(() => notifyFailed())
+  }
+
   const pendingSteer: NonNullable<SessionUserActions["pending"]> = {
     status: (messageID) => {
       const sessionID = input.session.identity.params.id
@@ -274,6 +303,11 @@ export function createActiveSessionRegion(input: {
           if (input.session.data.isChild()) return
 
           return revertMessage
+        },
+        get fork() {
+          if (input.session.data.isChild()) return
+
+          return forkMessage
         },
         get pending() {
           if (input.session.data.isChild()) return
