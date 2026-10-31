@@ -67,7 +67,7 @@ function AgentReasoningStory(props: { mode: ReasoningMode; reasoning: string; to
               props.reasoning === "blank"
                 ? "   "
                 : "## Inspecting stability\n\nI will inspect the timeline before changing its state.",
-            time: { created: STORY_TIME + 100, completed: props.tool || props.text ? STORY_TIME + 7100 : undefined },
+            time: { created: Date.now() - 2000, completed: props.tool || props.text ? STORY_TIME + 7100 : undefined },
           },
         ]),
     ...(props.tool
