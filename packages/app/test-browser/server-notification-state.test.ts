@@ -13,6 +13,10 @@ const session = { id: "session-1", title: "Test session", location: { directory:
 
 const alerts: string[] = []
 
+const autoApproved = new Set<string>()
+
+let approvedProject: string | undefined
+
 const tabs = { store: new Array<Tab>() }
 
 let createServerNotificationState: typeof import("@/shell/notifications/notification").createServerNotificationState
@@ -31,6 +35,7 @@ beforeAll(async () => {
     language: await import("@/runtime/i18n/language"),
     tabs: await import("@/shell/tabs/tabs"),
   }
+  approvedProject = real.settings.projectSettingsKey(ServerScope.local, "project-approved")
 
   mock.module("@/runtime/platform/platform", () => ({
     ...real.platform,
@@ -46,6 +51,7 @@ beforeAll(async () => {
     useSettings: () => ({
       sounds: { agentEnabled: () => false, errorsEnabled: () => false },
       notifications: { agent: () => true, errors: () => true },
+      permissions: { autoApproves: (project: string | undefined) => !!project && autoApproved.has(project) },
     }),
   }))
   mock.module("@/runtime/i18n/language", () => ({
@@ -74,6 +80,7 @@ test.each([
     createState({
       sdk: {
         scope: ServerScope.local,
+        connection: { status: () => "connected" },
         event: {
           listen: (listener: (event: OpenCodeEvent) => void) => {
             listeners.push(listener)
@@ -125,6 +132,7 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
     const state = createState({
       sdk: {
         scope: ServerScope.local,
+        connection: { status: () => "connected" },
         event: { listen: () => () => {} },
         api: {
           session: {
@@ -184,6 +192,84 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
     { sessionID: "other", idle: 4 },
   ])
   dispose.dispose()
+})
+
+test("attention counts distinct unarchived roots and manual requests", () => {
+  type Info = {
+    id: string
+    parentID?: string
+    projectID: string
+    time: { idle?: number; viewed?: number; archived?: number }
+    location: { directory: string }
+  }
+
+  const sessions: Record<string, Info> = {
+    unread: {
+      id: "unread",
+      projectID: "project-unread",
+      time: { idle: 2, viewed: 1 },
+      location: { directory: "/project" },
+    },
+    child: {
+      id: "child",
+      parentID: "unread",
+      projectID: "project-unread",
+      time: { idle: 5 },
+      location: { directory: "/project" },
+    },
+    form: {
+      id: "form",
+      projectID: "project-form",
+      time: { idle: 3, viewed: 3 },
+      location: { directory: "/project" },
+    },
+    approved: {
+      id: "approved",
+      projectID: "project-approved",
+      time: { idle: 4, viewed: 4 },
+      location: { directory: "/project" },
+    },
+    archived: {
+      id: "archived",
+      projectID: "project-archived",
+      time: { idle: 6, archived: 1 },
+      location: { directory: "/project" },
+    },
+    archivedChild: {
+      id: "archived-child",
+      parentID: "archived",
+      projectID: "project-archived",
+      time: { idle: 7 },
+      location: { directory: "/project" },
+    },
+  }
+  if (!approvedProject) throw new Error("approved project has no settings key")
+  autoApproved.add(approvedProject)
+
+  const instance = createRoot((dispose) => ({
+    dispose,
+    state: createState({
+      sdk: {
+        scope: ServerScope.local,
+        connection: { status: () => "connected" },
+        event: { listen: () => () => {} },
+      },
+      data: {
+        session: {
+          list: () => Object.values(sessions),
+          get: (id: string) => sessions[id],
+          root: (id: string) => sessions[id]?.parentID ?? id,
+          permission: { sessions: () => ["child", "approved", "archived-child"] },
+          form: { sessions: () => ["child", "form", "archived-child"] },
+        },
+      },
+      coordinator: {},
+    }),
+  }))
+
+  expect(instance.state.attention()).toEqual(["unread", "form"])
+  instance.dispose()
+  autoApproved.delete(approvedProject)
 })
 
 test("unread state honours the old local list until its viewed state is carried to the server, then deletes it", async () => {

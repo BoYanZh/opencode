@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onCleanup, untrack } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Schema } from "effect"
 import type { SessionInfo } from "@opencode/client/promise"
@@ -6,7 +6,7 @@ import type { ServerSDK } from "@/runtime/server/client"
 import type { Data } from "@opencode/client/solid"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useLanguage } from "@/runtime/i18n/language"
-import { useSettings } from "@/settings/model"
+import { projectSettingsKey, useSettings } from "@/settings/model"
 import { Persist, persisted, removePersisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { playSoundById } from "@/shell/notifications/sound"
@@ -47,6 +47,8 @@ const LEGACY_MIGRATION_DELAY = 5_000
 
 const LEGACY_MIGRATION_PAGE = 200
 
+const ATTENTION_SYNC_PAGE = 200
+
 const LEGACY_MIGRATION_CONCURRENCY = 4
 
 const VIEW_RETRY_DELAY = 250
@@ -64,13 +66,24 @@ export function createServerNotificationState(input: {
   const language = useLanguage()
   const tabs = useTabs()
   const disposed = { value: false }
+  const attentionChanged = new Set<string>()
   // Idle watermarks already reported per root session, so reactive re-runs don't re-post them.
   const acknowledged = new Map<string, number>()
   // A failed view report re-runs the tracking caller with backoff, like the TUI.
   const [state, setState] = createStore({ viewRetry: 0, legacyMigrated: false })
+  let attentionSync: Promise<void> | undefined
+  let attentionSynced = false
+  let attentionSyncGeneration = 0
   let viewRetryTimer: ReturnType<typeof setTimeout> | undefined
   let viewRetryAttempt = 0
   onCleanup(() => clearTimeout(viewRetryTimer))
+
+  createEffect(() => {
+    if (input.sdk.connection.status() === "connected") return
+    attentionSyncGeneration++
+    attentionSync = undefined
+    attentionSynced = false
+  })
 
   const legacyTarget = Persist.serverGlobal(input.sdk.scope, "notification")
   const [legacy, setLegacy, , legacyReady] = persisted(legacyTarget, LegacyNotificationStore, {}, platform)
@@ -204,6 +217,52 @@ export function createServerNotificationState(input: {
     )
   }
 
+  const syncAttention = () => {
+    if (attentionSynced || disposed.value) return Promise.resolve()
+    if (attentionSync) return attentionSync
+    const generation = attentionSyncGeneration
+    attentionChanged.clear()
+
+    attentionSync = (async () => {
+      let cursor: string | undefined
+
+      for (;;) {
+        const page = await input.sdk.api.session.list({
+          limit: ATTENTION_SYNC_PAGE,
+          order: "desc",
+          parentID: null,
+          cursor,
+        })
+
+        if (disposed.value || generation !== attentionSyncGeneration) return
+        batch(() =>
+          page.data
+            .filter((session) => !attentionChanged.has(session.id))
+            .forEach((session) => input.data.session.remember(session)),
+        )
+
+        if (page.data.length === 0 || !page.cursor.next) return
+        cursor = page.cursor.next
+      }
+    })().then(
+      () => {
+        if (generation !== attentionSyncGeneration) return
+        attentionSync = undefined
+        attentionSynced = true
+        attentionChanged.clear()
+      },
+      (error) => {
+        if (generation === attentionSyncGeneration) {
+          attentionSync = undefined
+          attentionChanged.clear()
+        }
+        throw error
+      },
+    )
+
+    return attentionSync
+  }
+
   // Loading the session keeps a background completion visible in the server-derived unread state.
   const lookup = async (sessionID: string) => {
     const session = input.data.session.get(sessionID)
@@ -265,6 +324,21 @@ export function createServerNotificationState(input: {
   }
 
   const unsub = input.sdk.event.listen((event) => {
+    if (attentionSync) {
+      switch (event.type) {
+        case "session.execution.succeeded":
+        case "session.execution.failed":
+        case "session.execution.interrupted":
+        case "session.viewed":
+        case "session.archived":
+        case "session.unarchived":
+        case "session.deleted":
+        case "session.moved":
+        case "session.renamed":
+          attentionChanged.add(event.data.sessionID)
+      }
+    }
+
     if (event.type === "session.execution.failed") {
       handleSessionError(event.data.sessionID, event.id)
 
@@ -280,6 +354,35 @@ export function createServerNotificationState(input: {
   })
 
   return {
+    syncAttention,
+    attention() {
+      const sessions = input.data.session.list()
+      const roots = new Set(
+        sessions.flatMap((session) =>
+          !session.parentID && session.time.archived === undefined && unread(session) ? [session.id] : [],
+        ),
+      )
+      const requests = [
+        ...input.data.session.permission.sessions().flatMap((sessionID) => {
+          const root = input.data.session.root(sessionID)
+          const session = input.data.session.get(root)
+
+          if (!session || session.time.archived !== undefined) return []
+          if (settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session.projectID))) return []
+          return [root]
+        }),
+        ...input.data.session.form.sessions().flatMap((sessionID) => {
+          const root = input.data.session.root(sessionID)
+          const session = input.data.session.get(root)
+
+          return session && session.time.archived === undefined ? [root] : []
+        }),
+      ]
+
+      requests.forEach((sessionID) => roots.add(sessionID))
+
+      return [...roots]
+    },
     session: {
       /**
        * Whether the session's root has an execution result no client has viewed yet. `snapshot` stands in for a root
