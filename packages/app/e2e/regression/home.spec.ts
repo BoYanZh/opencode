@@ -1,9 +1,26 @@
 import { expect, test, type Page } from "@playwright/test"
-import { expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, seed, sessionHref } from "../utils/app"
+import {
+  expectPath,
+  holdRoute,
+  NO_PROVIDER,
+  project,
+  REMOTE_SERVER,
+  seed,
+  session,
+  sessionHref,
+  SERVER,
+  T0,
+} from "../utils/app"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fixture, mockStressTimeline } from "../utils/session-fixture"
 import { mockRemoteServer } from "../utils/workspace"
 import { APP_READY_TIMEOUT, expectAppVisible } from "../utils/waits"
+
+declare global {
+  interface Window {
+    recordAppBadge: (method: "set" | "clear", count: number) => Promise<void>
+  }
+}
 
 test.use({ serviceWorkers: "block" })
 
@@ -18,6 +35,115 @@ async function openHome(page: Page, input: Parameters<typeof mockStressTimeline>
   })
   await page.goto("/")
 }
+
+test("the PWA badge counts distinct root sessions and follows the selected server", async ({ page }) => {
+  const badges: { method: "set" | "clear"; count: number }[] = []
+  await page.exposeFunction("recordAppBadge", (method: "set" | "clear", count: number) => {
+    badges.push({ method, count })
+  })
+  await page.addInitScript(() => {
+    Object.defineProperties(navigator, {
+      setAppBadge: { configurable: true, value: (count = 0) => window.recordAppBadge("set", count) },
+      clearAppBadge: { configurable: true, value: () => window.recordAppBadge("clear", 0) },
+    })
+  })
+
+  const directory = "C:/OpenCode/Badge"
+  const projectID = "proj_badge"
+  const unread = (id: string, title: string, idle: number, viewed: number) => ({
+    ...session({ id, directory, projectID, title }),
+    time: { created: T0, updated: T0, idle, viewed },
+  })
+  const rootA = unread("ses_badge_a", "Badge A", T0 + 10, T0 + 9)
+  const childA = {
+    ...session({ id: "ses_badge_a_child", directory, projectID, title: "Badge A child" }),
+    parentID: rootA.id,
+    time: { created: T0, updated: T0, idle: T0 + 20 },
+  }
+  const rootB = unread("ses_badge_b", "Badge B", T0 + 30, T0 + 29)
+  const rootC = unread("ses_badge_c", "Badge C", T0 + 40, T0 + 39)
+  const local = await mockOpenCodeServer(page, {
+    server: SERVER,
+    directory,
+    project: project({ id: projectID, directory }),
+    provider: NO_PROVIDER,
+    sessions: [rootA, childA, rootB, rootC],
+    pageMessages: () => ({ items: [] }),
+  })
+
+  const remoteDirectory = "/remote/badge"
+  const remote = session({
+    id: "ses_badge_remote",
+    directory: remoteDirectory,
+    projectID: "proj_badge_remote",
+    title: "Remote badge",
+    time: { created: T0, updated: T0, idle: T0 + 50, viewed: T0 + 50 },
+  })
+  await mockRemoteServer(page, {
+    directory: remoteDirectory,
+    project: project({ id: "proj_badge_remote", directory: remoteDirectory }),
+    sessions: [remote],
+    sessionPermissions: {
+      [remote.id]: [
+        { id: "permission_badge_remote", sessionID: remote.id, action: "shell", resources: ["git status"], metadata: {}, save: [] },
+      ],
+    },
+  })
+  await seed(page, {
+    projects: { local: [{ worktree: directory, expanded: true }] },
+    lastProject: { local: directory },
+    settings: {
+      notifications: { agent: false, permissions: false, errors: false },
+      sounds: { agentEnabled: false, permissionsEnabled: false, errorsEnabled: false },
+    },
+  })
+
+  await page.goto("/")
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "set", count: 3 })
+
+  await page.goto(sessionHref(remote.id, REMOTE_SERVER))
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "set", count: 1 })
+
+  await page.goto("/")
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "set", count: 3 })
+
+  rootA.time.viewed = rootA.time.idle
+  await local.push([
+    {
+      id: "evt_badge_viewed",
+      created: T0 + 60,
+      type: "session.viewed",
+      durable: { aggregateID: rootA.id, seq: 1, version: 1 },
+      location: { directory },
+      data: { sessionID: rootA.id, idle: rootA.time.idle },
+    },
+  ])
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "set", count: 2 })
+
+  await local.push([
+    {
+      id: "evt_badge_archived",
+      created: T0 + 61,
+      type: "session.archived",
+      durable: { aggregateID: rootB.id, seq: 1, version: 1 },
+      location: { directory },
+      data: { sessionID: rootB.id },
+    },
+  ])
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "set", count: 1 })
+
+  await local.push([
+    {
+      id: "evt_badge_deleted",
+      created: T0 + 62,
+      type: "session.deleted",
+      durable: { aggregateID: rootC.id, seq: 1, version: 2 },
+      location: { directory },
+      data: { sessionID: rootC.id },
+    },
+  ])
+  await expect.poll(() => badges.at(-1)).toEqual({ method: "clear", count: 0 })
+})
 
 test("the session context menu renames, exports, and deletes a Home session", async ({ page }) => {
   await openHome(page)
