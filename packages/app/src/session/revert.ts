@@ -140,8 +140,35 @@ export function createSessionFork() {
   ) => {
     const message = data.session.message.get(sessionID, messageID)
 
-    if (!message || message.type !== "user") {
+    if (!message || (message.type !== "user" && message.type !== "assistant")) {
       showToast({ title: language.t("common.requestFailed") })
+
+      return
+    }
+
+    if (message.type === "assistant") {
+      const ordered = data.session.message.list(sessionID)
+      const index = ordered.findIndex((item) => item.id === messageID)
+
+      if (index < 0) {
+        showToast({ title: language.t("common.requestFailed") })
+
+        return
+      }
+
+      const next = ordered[index + 1]
+
+      await server.api.session
+        .fork(next ? { sessionID, before: next.id } : { sessionID })
+        .then((forked) => {
+          data.session.remember(forked)
+          opts?.onForked?.(forked.id)
+          navigate(sessionHref(opts?.serverKey ?? current.key, forked.id))
+        })
+        .catch((cause: unknown) => {
+          const description = cause instanceof Error ? cause.message : String(cause)
+          showToast({ title: language.t("common.requestFailed"), description })
+        })
 
       return
     }
