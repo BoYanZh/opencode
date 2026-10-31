@@ -15,6 +15,12 @@ const Background = Schema.Struct({
       sessionID: SessionSchema.ID,
       shellID: Schema.String,
       command: Schema.String,
+      // Working directory the command ran in. Optional so records written
+      // before this field existed still decode.
+      cwd: Schema.optionalKey(Schema.String),
+      // Opt-in re-spawn after a server restart. Only set for idempotent
+      // commands that are safe to run twice.
+      respawn: Schema.optionalKey(Schema.Boolean),
     }),
     Schema.Struct({
       kind: Schema.Literal("subagent"),
@@ -410,6 +416,7 @@ export const make = Effect.gen(function* () {
 
   const cancel: Interface["cancel"] = Effect.fn("Job.cancel")(function* (id) {
     const completed_at = yield* Clock.currentTimeMillis
+    yield* Effect.logWarning("Job.cancel requested", { id })
     const result = yield* SynchronizedRef.modifyEffect(
       state.jobs,
       Effect.fnUntraced(function* (jobs): Effect.fn.Return<readonly [FinishResult, Map<string, Active>]> {

@@ -3,12 +3,15 @@ export * as SessionRestart from "./restart.js"
 import { Context, Effect, Layer } from "effect"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Bus } from "../../bus.js"
+import { Instance } from "../../instance/service.js"
 import { Job } from "../../job.js"
+import { Plugin } from "../../plugin/service.js"
 import { Session } from "../../session.js"
 import { SessionEvent } from "../event.js"
 import { SessionExecution } from "../execution.js"
 import { SessionSchema } from "../schema.js"
 import { SessionStore } from "../store.js"
+import { Shell } from "../../shell.js"
 import { ShellResult } from "../../shell/result.js"
 import { SubagentCompletion } from "../subagent-completion.js"
 
@@ -71,6 +74,7 @@ export const layer = (options?: Options) =>
       const bus = yield* Bus.Service
       const jobs = yield* Job.Service
       const sessions = yield* Session.Service
+      const instances = yield* Instance.Service
       const scope = yield* Effect.scope
       const maxAttempts = options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
 
@@ -101,7 +105,77 @@ export const layer = (options?: Options) =>
       const recoverShell = Effect.fnUntraced(function* (
         background: Job.Background,
         recovery: Extract<Job.Recovery, { kind: "shell" }>,
+        suspended: ReadonlySet<SessionSchema.ID>,
       ) {
+        // Opt-in respawn: re-run a still-running command instead of tombstoning
+        // it. The command was already approved before the restart; recovery
+        // replays it. Checkpointing commands (like long scans writing result
+        // files) resume from disk, so re-running is cheap and correct. Any
+        // failure to re-spawn falls back to the tombstone below.
+        let respawned = false
+        if (background.status === "running" && (recovery.respawn ?? false)) {
+          respawned = yield* Effect.gen(function* () {
+                const session = yield* store.get(recovery.sessionID)
+                if (!session) return false
+                const shell = yield* Plugin.awaitActivation.pipe(
+                  Effect.andThen(Shell.Service),
+                  instances.provide(session),
+                )
+                const info = yield* shell.create({
+                  command: recovery.command,
+                  cwd: recovery.cwd ?? session.location.directory,
+                  timeout: 0,
+                  metadata: { sessionID: session.id, background: true, respawned: true },
+                })
+                const run = Effect.gen(function* () {
+                  const result = yield* shell.result(info)
+                  if (!result.capture) return "Shell command output is no longer available."
+                  return ShellResult.output(result).output
+                }).pipe(Effect.onInterrupt(() => shell.remove(info.id).pipe(Effect.ignore)))
+                const job = yield* jobs.start({
+                  id: info.id,
+                  type: "shell",
+                  title: info.command,
+                  notificationID: background.notificationID,
+                  recovery: { ...recovery, shellID: info.id },
+                  run,
+                })
+                yield* jobs.background(job.id)
+                yield* jobs.wait({ id: job.id }).pipe(
+                  Effect.flatMap((result) =>
+                    result.info
+                      ? sessions
+                          .synthetic({
+                            id: background.notificationID,
+                            sessionID: recovery.sessionID,
+                            description: recovery.command,
+                            ...ShellResult.notification({
+                              jobID: job.id,
+                              shellID: info.id,
+                              command: recovery.command,
+                              state:
+                                result.info.status === "completed"
+                                  ? "completed"
+                                  : result.info.status === "error"
+                                    ? "error"
+                                    : "cancelled",
+                              text: result.info.output ?? result.info.error ?? "Command finished",
+                            }),
+                            resume: suspended.has(recovery.sessionID) ? false : undefined,
+                          })
+                          .pipe(
+                            Effect.catchTag("Session.NotFoundError", () => Effect.void),
+                            Effect.orDie,
+                            Effect.andThen(jobs.completeBackground(background.notificationID)),
+                          )
+                      : Effect.void,
+                  ),
+                  Effect.forkIn(scope),
+                )
+                return true
+              }).pipe(Effect.orElseSucceed(() => false))
+        }
+        if (respawned) return
         const state = background.status === "running" ? "cancelled" : background.status
         const text =
           background.status === "running"
@@ -210,7 +284,7 @@ export const layer = (options?: Options) =>
               if ((yield* jobs.get(background.id))?.status === "running") return
               const recovery = background.recovery
               yield* recovery.kind === "shell"
-                ? recoverShell(background, recovery)
+                ? recoverShell(background, recovery, suspended)
                 : recoverSubagent(background, recovery, suspended)
             }),
             { discard: true },
@@ -236,5 +310,5 @@ export const layer = (options?: Options) =>
 export const node = makeGlobalNode({
   service: Service,
   layer: layer(),
-  deps: [SessionStore.node, SessionExecution.node, Bus.node, Job.node, Session.node],
+  deps: [SessionStore.node, SessionExecution.node, Bus.node, Job.node, Session.node, Instance.node],
 })
