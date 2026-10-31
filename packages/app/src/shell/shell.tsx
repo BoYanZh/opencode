@@ -11,6 +11,7 @@ import { useSettingsSurface } from "@/settings/surface"
 import { useSettings } from "@/settings/model"
 import { ExtensionServerCover } from "@/runtime/extension/server-shell"
 import { ExtensionSlot } from "@/runtime/extension/render"
+import { AppBadge } from "@/shell/notifications/app-badge"
 
 export default function Layout(props: ParentProps) {
   const platform = usePlatform()
@@ -28,6 +29,7 @@ export default function Layout(props: ParentProps) {
 
   return (
     <TitlebarRightProvider>
+      <AppBadge />
       <div
         class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
         style={{
