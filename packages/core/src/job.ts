@@ -442,6 +442,7 @@ export const make = Effect.gen(function* () {
 
   const cancelInternal = Effect.fnUntraced(function* (id: string, persist = true) {
     const completed_at = yield* Clock.currentTimeMillis
+    yield* Effect.logWarning("Job.cancel requested", { id })
     const result = yield* SynchronizedRef.modifyEffect(
       state.jobs,
       Effect.fnUntraced(function* (jobs): Effect.fn.Return<readonly [FinishResult, Map<string, Active>]> {
