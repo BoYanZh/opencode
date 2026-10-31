@@ -169,11 +169,19 @@ const layer = () =>
         const index = exitOrder.indexOf(id)
         if (index !== -1) exitOrder.splice(index, 1)
         if (!command) return
+        // Audit trail: this is the only path that kills the OS process and
+        // deletes the output file. Log it so the next mysterious death of a
+        // running command leaves fingerprints (who/when/status).
+        yield* Effect.logWarning("Shell.remove requested", { id, status: command.info.status })
         commands.delete(id)
         if (command.timeoutFiber) yield* Fiber.interrupt(command.timeoutFiber)
         // Unblock any wait still pending when the command is removed before it terminated.
         yield* Deferred.fail(command.done, new NotFoundError({ id }))
-        yield* Effect.promise(() => unlink(command.file).catch(() => {}))
+        // Keep the output file of a killed command: it is the only evidence of
+        // partial progress and the resume data for restart recovery. Exited
+        // commands still clean up here; the 7-day sweep handles the rest.
+        if (command.info.status !== "running")
+          yield* Effect.promise(() => unlink(command.file).catch(() => {}))
         // Every shell reports exactly one exit; removing a running one ends it as killed.
         if (command.info.status === "running") yield* bus.publish(Shell.Event.Exited, { id, status: "killed" })
         yield* bus.publish(Shell.Event.Deleted, { id })

@@ -11,6 +11,7 @@ import { makeGlobalNode, makeLocationNode } from "@opencode/util/effect/app-node
 import { filesystem } from "@opencode/util/effect/app-node-platform"
 import { Database } from "@opencode/core/database/database"
 import { Bus } from "@opencode/core/bus"
+import { SessionInbox } from "@opencode/core/session/inbox"
 import { Config } from "@opencode/core/config"
 import { Environment } from "@opencode/core/environment/index"
 import { FSUtil } from "@opencode/util/fs-util"
@@ -23,9 +24,12 @@ import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Agent } from "@opencode/core/agent"
 import { Job } from "@opencode/core/job"
+import { KV } from "@opencode/core/kv"
+import { Instance } from "@opencode/core/instance/service"
 import { Session } from "@opencode/core/session"
 import { SessionEvent } from "@opencode/core/session/event"
 import { SessionExecution } from "@opencode/core/session/execution"
+import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { SessionMessage } from "@opencode/core/session/message"
 import { SessionStore } from "@opencode/core/session/store"
 import { Permission } from "@opencode/core/permission"
@@ -1636,5 +1640,128 @@ describe("ShellTool", () => {
         }),
       )
     }),
+  )
+})
+
+const restartIt = testEffect(
+  AppNodeBuilder.build(LayerNode.group([nodes, SessionRestart.node, KV.node, Instance.node]), [
+    SessionExecution.node.replace(executionNode),
+    Global.node.replace(tempGlobalLayer),
+    offlineModels,
+    PluginSupervisor.node.replace(shellPluginSupervisor),
+  ]),
+)
+
+describe("ShellTool restart recovery", () => {
+  restartIt.live("re-spawns a running respawn shell instead of tombstoning it", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((dir) =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const parent = yield* sessions.create({
+            location,
+            model: sessionModel,
+            title: "respawn recipient",
+          })
+          const locations = yield* LocationServiceMap.Service
+          return yield* Effect.gen(function* () {
+            const plugins = yield* Plugin.Service
+            yield* plugins.awaitActivation
+            const jobs = yield* Job.Service
+            const kv = yield* KV.Service
+            const notificationID = SessionMessage.ID.create()
+            const command = isWindows ? "[Console]::Out.Write('respawned')" : "printf respawned"
+            yield* kv.set(`job.background/${notificationID}`, {
+              id: "job-test-shell-respawn",
+              notificationID,
+              recovery: {
+                kind: "shell",
+                sessionID: parent.id,
+                shellID: "sh_old00000000",
+                command,
+                cwd: dir.path,
+                respawn: true,
+              },
+              status: "running",
+            })
+            const restart = yield* SessionRestart.Service
+            yield* restart.resumeSuspendedSessions
+            yield* sessions.wait(parent.id)
+            yield* jobs.pendingBackground.pipe(Effect.repeat({ until: (pending) => pending.length === 0 }))
+            // The mock execution engine never drains; promote the admitted
+            // synthetic into visible context explicitly.
+            const database = yield* Database.Service
+            const bus = yield* Bus.Service
+            yield* SessionInbox.promote(database.db, bus, parent.id, "steer")
+            const messages = (yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")
+            expect(messages).toEqual([
+              expect.objectContaining({
+                id: notificationID,
+                description: command,
+                text: expect.stringContaining("respawned"),
+              }),
+            ])
+            expect(messages[0]?.text).toContain('state="completed"')
+            expect(yield* jobs.pendingBackground).toEqual([])
+          }).pipe(Effect.provide(locations.get(location)), Effect.ensuring(locations.invalidate(location)))
+        }),
+      ),
+    ),
+  )
+
+  restartIt.live("keeps the tombstone for running shells without respawn", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((dir) =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const parent = yield* sessions.create({
+            location,
+            model: sessionModel,
+            title: "tombstone recipient",
+          })
+          const locations = yield* LocationServiceMap.Service
+          return yield* Effect.gen(function* () {
+            const plugins = yield* Plugin.Service
+            yield* plugins.awaitActivation
+            const kv = yield* KV.Service
+            const notificationID = SessionMessage.ID.create()
+            const command = isWindows ? "[Console]::Out.Write('nope')" : "printf nope"
+            yield* kv.set(`job.background/${notificationID}`, {
+              id: "job-test-shell-tombstone",
+              notificationID,
+              recovery: {
+                kind: "shell",
+                sessionID: parent.id,
+                shellID: "sh_old00000001",
+                command,
+              },
+              status: "running",
+            })
+            const restart = yield* SessionRestart.Service
+            yield* restart.resumeSuspendedSessions
+            yield* sessions.wait(parent.id)
+            const database = yield* Database.Service
+            const bus = yield* Bus.Service
+            yield* SessionInbox.promote(database.db, bus, parent.id, "steer")
+            const messages = (yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")
+            expect(messages).toEqual([
+              expect.objectContaining({
+                id: notificationID,
+                text: expect.stringContaining("server restarted"),
+              }),
+            ])
+            expect(messages[0]?.text).toContain('state="cancelled"')
+          }).pipe(Effect.provide(locations.get(location)), Effect.ensuring(locations.invalidate(location)))
+        }),
+      ),
+    ),
   )
 })
