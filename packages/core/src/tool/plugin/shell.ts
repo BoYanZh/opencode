@@ -58,6 +58,10 @@ export const Input = Schema.Struct({
     description:
       "Run the command in the background and return immediately (useful for dev servers and long-running builds). You do not need to use '&' at the end of the command when using this parameter. You will be notified when it completes. DO NOT poll for completion.",
   }),
+  respawn: Schema.optionalKey(Schema.Boolean).annotate({
+    description:
+      "If the server restarts while a background command is still running, re-run the command after restart instead of reporting it cancelled. Only set this for idempotent commands that are safe to run twice.",
+  }),
 })
 
 const StructuredOutput = Schema.Struct({
@@ -247,6 +251,8 @@ export const Plugin = {
                   sessionID: context.sessionID,
                   shellID: info.id,
                   command: info.command,
+                  cwd: info.cwd,
+                  respawn: input.respawn ?? false,
                 },
                 run,
               })
