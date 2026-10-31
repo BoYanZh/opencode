@@ -1142,6 +1142,9 @@ export function AssistantTextContent(props: {
   /** The finished turn's web searches and fetches, shown as a chip in its footer. */
   sources?: TurnSources
   onOpenSources?: () => void
+  sessionID?: string
+  messageID?: string
+  actions?: SessionUserActions
 }) {
   const data = useData()
   const i18n = useI18n()
@@ -1198,11 +1201,23 @@ export function AssistantTextContent(props: {
   ])
 
   const [copied, setCopied] = createSignal(false)
+  const [forking, setForking] = createSignal(false)
 
   const copy = async () => {
     if (!(await writeClipboard(props.text))) return
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const fork = async () => {
+    if (!props.actions?.fork || !props.sessionID || !props.messageID || forking()) return
+    setForking(true)
+
+    try {
+      await props.actions.fork({ sessionID: props.sessionID, messageID: props.messageID })
+    } finally {
+      setForking(false)
+    }
   }
 
   return (
@@ -1231,6 +1246,17 @@ export function AssistantTextContent(props: {
   function copyFooter() {
     return (
       <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
+        <Show when={props.actions?.fork && props.sessionID && props.messageID}>
+          <MessageActionButton
+            icon="fork"
+            size="small"
+            label={i18n.t("ui.message.forkMessage")}
+            disabled={forking()}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={fork}
+            aria-label={i18n.t("ui.message.forkMessage")}
+          />
+        </Show>
         <MessageActionButton
           icon={copied() ? "check" : "copy"}
           size="small"

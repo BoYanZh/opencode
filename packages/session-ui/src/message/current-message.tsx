@@ -63,6 +63,8 @@ export function SessionAssistantContent(props: {
   turnDurationMs?: number | null
   sources?: TurnSources
   onOpenSources?: () => void
+  sessionID?: string
+  actions?: SessionUserActions
   defaultOpen?: boolean
   reasoningDefaultOpen?: boolean
   toolOpen?: boolean
@@ -81,6 +83,9 @@ export function SessionAssistantContent(props: {
             turnDurationMs={props.turnDurationMs}
             sources={props.sources}
             onOpenSources={props.onOpenSources}
+            sessionID={props.sessionID}
+            messageID={props.message.id}
+            actions={props.actions}
           />
         )}
       </Match>

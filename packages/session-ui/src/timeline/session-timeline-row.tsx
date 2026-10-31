@@ -477,6 +477,8 @@ export function createSessionTimelineRowRenderer(input: {
                 turnDurationMs={duration(row().userMessageID)}
                 sources={turnSourcesValue()}
                 onOpenSources={() => sourcesHost?.open(row().userMessageID)}
+                sessionID={input.sessionID()}
+                actions={input.actions}
                 defaultOpen={defaultOpen()}
                 toolOpen={input.disclosure.value(disclosureKey()) ?? defaultOpen()}
                 onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}
