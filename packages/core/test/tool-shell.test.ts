@@ -24,6 +24,7 @@ import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Agent } from "@opencode/core/agent"
 import { Job } from "@opencode/core/job"
+import { JobTable } from "@opencode/core/job/sql"
 import { KV } from "@opencode/core/kv"
 import { Instance } from "@opencode/core/instance/service"
 import { Session } from "@opencode/core/session"
@@ -1672,29 +1673,34 @@ describe("ShellTool restart recovery", () => {
             const plugins = yield* Plugin.Service
             yield* plugins.awaitActivation
             const jobs = yield* Job.Service
-            const kv = yield* KV.Service
+            const database = yield* Database.Service
             const notificationID = SessionMessage.ID.create()
             const command = isWindows ? "[Console]::Out.Write('respawned')" : "printf respawned"
-            yield* kv.set(`job.background/${notificationID}`, {
-              id: "job-test-shell-respawn",
-              notificationID,
-              recovery: {
+            yield* database.db
+              .insert(JobTable)
+              .values({
+                notification_id: notificationID,
+                id: "job-test-shell-respawn",
+                session_id: parent.id,
                 kind: "shell",
-                sessionID: parent.id,
-                shellID: "sh_old00000000",
-                command,
-                cwd: dir.path,
-                respawn: true,
-              },
-              status: "running",
-            })
+                title: command,
+                status: "running",
+                recovery: {
+                  kind: "shell",
+                  sessionID: parent.id,
+                  shellID: "sh_old00000000",
+                  command,
+                  cwd: dir.path,
+                  respawn: true,
+                },
+              })
+              .run()
             const restart = yield* SessionRestart.Service
             yield* restart.resumeSuspendedSessions
             yield* sessions.wait(parent.id)
             yield* jobs.pendingBackground.pipe(Effect.repeat({ until: (pending) => pending.length === 0 }))
             // The mock execution engine never drains; promote the admitted
             // synthetic into visible context explicitly.
-            const database = yield* Database.Service
             const bus = yield* Bus.Service
             yield* SessionInbox.promote(database.db, bus, parent.id, "steer")
             const messages = (yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")
@@ -1731,24 +1737,29 @@ describe("ShellTool restart recovery", () => {
           return yield* Effect.gen(function* () {
             const plugins = yield* Plugin.Service
             yield* plugins.awaitActivation
-            const kv = yield* KV.Service
+            const database = yield* Database.Service
             const notificationID = SessionMessage.ID.create()
             const command = isWindows ? "[Console]::Out.Write('nope')" : "printf nope"
-            yield* kv.set(`job.background/${notificationID}`, {
-              id: "job-test-shell-tombstone",
-              notificationID,
-              recovery: {
+            yield* database.db
+              .insert(JobTable)
+              .values({
+                notification_id: notificationID,
+                id: "job-test-shell-tombstone",
+                session_id: parent.id,
                 kind: "shell",
-                sessionID: parent.id,
-                shellID: "sh_old00000001",
-                command,
-              },
-              status: "running",
-            })
+                title: command,
+                status: "running",
+                recovery: {
+                  kind: "shell",
+                  sessionID: parent.id,
+                  shellID: "sh_old00000001",
+                  command,
+                },
+              })
+              .run()
             const restart = yield* SessionRestart.Service
             yield* restart.resumeSuspendedSessions
             yield* sessions.wait(parent.id)
-            const database = yield* Database.Service
             const bus = yield* Bus.Service
             yield* SessionInbox.promote(database.db, bus, parent.id, "steer")
             const messages = (yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")
