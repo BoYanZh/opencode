@@ -40,6 +40,8 @@ import {
   listPickerDirectory,
   pickerRelativePath,
   pickerAbsolutePath,
+  pickerDisplaySeparator,
+  withPickerSeparator,
 } from "./domain"
 import "./dialog.css"
 
@@ -133,7 +135,7 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
   const start = createMemo(
     () =>
       props.start ||
-      home() ||
+      sync.data.path.home ||
       props.location?.directory ||
       sync.data.path.directory ||
       fallbackPath.latest?.directory,
@@ -418,7 +420,7 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
 
     if (!match) return
     const value = displayPickerPath(match.absolute, state.input, home())
-    setState("input", match.type === "directory" && !value.endsWith("/") ? value + "/" : value)
+    setState("input", match.type === "directory" ? withPickerSeparator(value) : value)
 
     if (match.type === "file") {
       setState({
@@ -747,7 +749,9 @@ export function DirectoryPickerDialog(props: DirectoryPickerDialogProps) {
                     onClick={() => chooseSuggestion(suggestion)}
                   >
                     {displayPickerPath(suggestion.absolute, state.input, home())}
-                    {suggestion.type === "directory" ? "/" : ""}
+                    {suggestion.type === "directory"
+                      ? pickerDisplaySeparator(displayPickerPath(suggestion.absolute, state.input, home()))
+                      : ""}
                   </button>
                 )}
               </For>
