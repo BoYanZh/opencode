@@ -6,6 +6,13 @@ export interface Message {
   readonly type: string
   readonly time: { readonly created: number; readonly streamed?: number; readonly completed?: number }
   readonly tokens?: { readonly output: number; readonly reasoning: number }
+  readonly content?: readonly ContentPart[]
+}
+
+/** A message content part. Only non-text parts carry a start timestamp. */
+export interface ContentPart {
+  readonly type: string
+  readonly time?: { readonly created?: number; readonly completed?: number }
 }
 
 export interface Options {
@@ -42,6 +49,14 @@ export function tokensPerSecond(messages: readonly Message[], message: Message, 
   if (output <= 0 || total <= 0) return
   // Aggregate before dividing so each step is weighted by its provider-active duration.
   return output / (total / 1_000)
+}
+
+/** Milliseconds from the step's start until its first non-text output, or undefined for text-first steps. Text parts carry no start timestamp, so TTFT stays unavailable until a non-text part leads. */
+export function timeToFirstToken(message: Message): number | undefined {
+  const head = message.content?.[0]
+  const first = head && head.type !== "text" ? head.time?.created : undefined
+  if (first === undefined) return
+  return Math.max(0, first - message.time.created)
 }
 
 export function legacy(messages: readonly Message[]) {

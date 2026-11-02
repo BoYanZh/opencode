@@ -16,6 +16,9 @@ export default {
   "duration.tip": "Time from the prompt that started the latest turn until its response completed.",
   "tps.label": "TPS",
   "tps.tip": "Output and reasoning tokens per second across the latest turn's model requests, excluding tool time.",
+  "ttft.label": "TTFT",
+  "ttft.tip":
+    "Time from the latest turn's step start until its first model output, in milliseconds. Unavailable for text-first responses.",
   "nav.label": "NAV",
   "nav.tip":
     "Last completed route transition touching a session page, measured from router start until the first paint after it settles.",

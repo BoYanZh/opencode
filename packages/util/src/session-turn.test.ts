@@ -111,3 +111,26 @@ function step(id: string, time: Message["time"], output?: number, reasoning = 0)
     tokens: output === undefined ? undefined : { output, reasoning },
   }
 }
+
+test("measures time to first output for non-text-led steps", () => {
+  const led = {
+    type: "assistant",
+    id: "assistant-1",
+    time: { created: 1_000 },
+    content: [{ type: "reasoning", time: { created: 1_250 } }, { type: "text" }],
+  }
+
+  expect(SessionTurn.timeToFirstToken(led)).toBe(250)
+})
+
+test("leaves TTFT unavailable without a leading non-text part", () => {
+  const textFirst = {
+    type: "assistant",
+    id: "assistant-2",
+    time: { created: 2_000 },
+    content: [{ type: "text" }],
+  }
+
+  expect(SessionTurn.timeToFirstToken(textFirst)).toBeUndefined()
+  expect(SessionTurn.timeToFirstToken({ type: "assistant", id: "assistant-3", time: { created: 3_000 } })).toBeUndefined()
+})
