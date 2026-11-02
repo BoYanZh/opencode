@@ -14,7 +14,6 @@ import {
 import { Option, Schema } from "effect"
 import type { SessionMessageAssistantTool } from "@opencode/client/promise"
 import { ToolElapsed } from "./tool-elapsed"
-import { animate, type AnimationPlaybackControls } from "motion"
 import { useI18n } from "@opencode/ui/context/i18n"
 import { createStore } from "solid-js/store"
 import { Collapsible } from "@opencode/ui/collapsible"
