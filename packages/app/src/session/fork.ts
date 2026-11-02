@@ -11,7 +11,8 @@ import { useWorkspaceLocation } from "@/workspaces/location"
 
 /**
  * Forks a session before one of its prompts: the new session keeps the history above the prompt, opens, and has the
- * prompt back in its composer to edit and send. Resolves to whether the fork opened.
+ * prompt back in its composer to edit and send. Forking from an assistant message keeps the history above the next
+ * prompt instead, opening the fork without seeding the composer. Resolves to whether the fork opened.
  */
 export function useSessionFork() {
   const navigate = useNavigate()
@@ -25,7 +26,30 @@ export function useSessionFork() {
   return async (input: { sessionID: string; messageID: string }) => {
     const message = data.session.message.get(input.sessionID, input.messageID)
 
-    if (message?.type !== "user") return false
+    if (!message || (message.type !== "user" && message.type !== "assistant")) return false
+
+    if (message.type === "assistant") {
+      const ordered = data.session.message.list(input.sessionID)
+      const index = ordered.findIndex((item) => item.id === input.messageID)
+
+      if (index < 0) return false
+      const next = ordered[index + 1]
+
+      return serverSDK.api.session
+        .fork(next ? { sessionID: input.sessionID, before: next.id } : { sessionID: input.sessionID })
+        .then((forked) => {
+          data.session.remember(forked)
+          navigate(sessionHref(server.key, forked.id))
+
+          return true
+        })
+        .catch((cause: unknown) => {
+          const message = cause instanceof Error ? cause.message : String(cause)
+          showToast({ title: language.t("common.requestFailed"), description: message })
+
+          return false
+        })
+    }
 
     const restored = extractPromptFromMessage(message, {
       directory: location().directory,
