@@ -254,6 +254,8 @@ export default function DebugBar(props: {
       duration: elapsed ? duration(elapsed) : undefined,
       tps: SessionTurn.tokensPerSecond(messages, messages[index], options),
       ttft: SessionTurn.timeToFirstToken(messages[index]),
+      ttfa: SessionTurn.timeToFirstAnswer(messages[index]),
+      e2e: SessionTurn.endToEnd(messages[index]),
     }
   })
 
@@ -622,6 +624,20 @@ export default function DebugBar(props: {
           tip={ctx.t("ttft.tip")}
           value={time(turn()?.ttft) ?? na()}
           dim={turn()?.ttft === undefined}
+          inline={props.inline}
+        />
+        <Cell
+          label={ctx.t("ttfa.label")}
+          tip={ctx.t("ttfa.tip")}
+          value={time(turn()?.ttfa) ?? na()}
+          dim={turn()?.ttfa === undefined}
+          inline={props.inline}
+        />
+        <Cell
+          label={ctx.t("e2e.label")}
+          tip={ctx.t("e2e.tip")}
+          value={time(turn()?.e2e) ?? na()}
+          dim={turn()?.e2e === undefined}
           inline={props.inline}
         />
         <Cell

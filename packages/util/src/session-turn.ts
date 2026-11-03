@@ -59,6 +59,24 @@ export function timeToFirstToken(message: Message): number | undefined {
   return Math.max(0, first - message.time.created)
 }
 
+/** Milliseconds from the step's start until its first answer text, or undefined without one. Text parts carry no start timestamp, so the end of the reasoning right before the first text stands in for the answer's start. */
+export function timeToFirstAnswer(message: Message): number | undefined {
+  const content = message.content
+  if (!content) return
+  const text = content.findIndex((item) => item.type === "text")
+  if (text <= 0) return
+  const before = content[text - 1]
+  const answer = before.type === "reasoning" ? before.time?.completed : undefined
+  if (answer === undefined) return
+  return Math.max(0, answer - message.time.created)
+}
+
+/** Milliseconds from the step's start until its stream ended, or undefined while it runs. */
+export function endToEnd(message: Message): number | undefined {
+  if (message.time.streamed === undefined) return
+  return Math.max(0, message.time.streamed - message.time.created)
+}
+
 export function legacy(messages: readonly Message[]) {
   return !messages.some((message) => message.type === "idle")
 }

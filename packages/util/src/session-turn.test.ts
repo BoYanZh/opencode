@@ -134,3 +134,28 @@ test("leaves TTFT unavailable without a leading non-text part", () => {
   expect(SessionTurn.timeToFirstToken(textFirst)).toBeUndefined()
   expect(SessionTurn.timeToFirstToken({ type: "assistant", id: "assistant-3", time: { created: 3_000 } })).toBeUndefined()
 })
+
+test("measures time to first answer from the reasoning end", () => {
+  const message = {
+    type: "assistant",
+    id: "assistant-1",
+    time: { created: 1_000, streamed: 9_000, completed: 10_000 },
+    content: [{ type: "reasoning", time: { created: 1_200, completed: 2_500 } }, { type: "text" }],
+  }
+
+  expect(SessionTurn.timeToFirstAnswer(message)).toBe(1_500)
+  expect(SessionTurn.endToEnd(message)).toBe(8_000)
+})
+
+test("omits answer and end-to-end times without anchors", () => {
+  const textFirst = {
+    type: "assistant",
+    id: "assistant-2",
+    time: { created: 2_000 },
+    content: [{ type: "text" }],
+  }
+
+  expect(SessionTurn.timeToFirstAnswer(textFirst)).toBeUndefined()
+  expect(SessionTurn.endToEnd(textFirst)).toBeUndefined()
+  expect(SessionTurn.endToEnd({ type: "assistant", id: "assistant-3", time: { created: 3_000 } })).toBeUndefined()
+})

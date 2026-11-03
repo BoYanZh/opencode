@@ -19,6 +19,11 @@ export default {
   "ttft.label": "TTFT",
   "ttft.tip":
     "Time from the latest turn's step start until its first model output, in milliseconds. Unavailable for text-first responses.",
+  "ttfa.label": "TTFA",
+  "ttfa.tip":
+    "Time from the latest turn's step start until its first answer text, in milliseconds. Unavailable without reasoning before the first text.",
+  "e2e.label": "E2E",
+  "e2e.tip": "Time from the latest turn's step start until its stream ended, in milliseconds.",
   "nav.label": "NAV",
   "nav.tip":
     "Last completed route transition touching a session page, measured from router start until the first paint after it settles.",
