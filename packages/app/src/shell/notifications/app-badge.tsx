@@ -15,16 +15,20 @@ type AppBadgeNavigator = Navigator & {
 function supportsAppBadge(value: Navigator): value is AppBadgeNavigator {
   return (
     "setAppBadge" in value &&
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- probing for an optional PWA API that most browsers lack
     typeof value.setAppBadge === "function" &&
     "clearAppBadge" in value &&
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- probing for an optional PWA API that most browsers lack
     typeof value.clearAppBadge === "function"
   )
 }
 
 export function AppBadge() {
   const platform = usePlatform()
+
   if (platform.platform !== "web" || !supportsAppBadge(navigator)) return null
   const badge = navigator
+
   const global = useGlobal()
   const servers = useServers()
   const layout = useLayout()
@@ -33,12 +37,8 @@ export function AppBadge() {
 
   const server = createMemo(() => {
     const route = layout.route()
-    const key =
-      route.type === "session"
-        ? route.server
-        : route.type === "draft"
-          ? tabs.store.find((tab) => tab.type === "draft" && tab.draftID === route.draftID)?.server
-          : layout.home.selection().server
+    const draft = route.type === "draft" ? tabs.store.find((tab) => tab.type === "draft" && tab.draftID === route.draftID) : undefined
+    const key = route.type === "session" ? route.server : (draft?.server ?? layout.home.selection().server)
 
     return servers.visible.find((conn) => ServerConnection.key(conn) === key) ?? servers.visible[0]
   })
@@ -91,6 +91,7 @@ async function syncRoots(ctx: Exclude<ReturnType<ReturnType<typeof useGlobal>["s
     const page = await ctx.sdk.api.session.list({ limit: 200, order: "desc", parentID: null, cursor })
 
     page.data.forEach((session) => ctx.data.session.remember(session))
+
     if (page.data.length === 0 || !page.cursor.next) return
     cursor = page.cursor.next
   }
