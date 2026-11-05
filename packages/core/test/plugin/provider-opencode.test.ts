@@ -1750,7 +1750,13 @@ describe("OpencodePlugin with a Console config", () => {
       Effect.sync(() =>
         Bun.serve({
           port: 0,
-          fetch: () => Response.json({ $schema, providers: { remote: { name: "Remote" } }, policies: [deny] }),
+          fetch: () =>
+            Response.json({
+              $schema,
+              providers: { remote: { name: "Remote" } },
+              policies: [deny],
+              websearch: {},
+            }),
         }),
       ),
       (server) =>
@@ -1772,6 +1778,7 @@ describe("OpencodePlugin with a Console config", () => {
 
           const document = required(yield* consoleDocument(config))
           expect(document.info.providers?.remote?.name).toBe("Remote")
+          expect(document.info.websearch).toBeUndefined()
           expect(document.organization).toBe("Acme")
           expect(
             yield* hooks.trigger("permission", "evaluate", {
