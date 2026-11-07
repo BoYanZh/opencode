@@ -55,9 +55,9 @@ export function AppBadge() {
   const count = createMemo(() => {
     const conn = server()
     const ctx = conn ? global.serverCtx(ServerConnection.key(conn)) : undefined
-    const data = ctx?.data
 
-    if (!data) return 0
+    if (!ctx) return 0
+    const data = ctx.data
 
     return data.session
       .list()
@@ -65,7 +65,7 @@ export function AppBadge() {
       .filter((root) => {
         if (ctx.notification.session.unread(root.id)) return true
         const project = projectSettingsKey(ctx.sdk.scope, root.projectID)
-        const requests = sessionRequests(data, root.id, true, settings.permissions.autoApproves(project))
+        const requests = sessionRequests(ctx, root.id, true, settings.permissions.autoApproves(project))
 
         return requests.permission || requests.form
       }).length
