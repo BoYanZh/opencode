@@ -39,7 +39,10 @@ export type SessionUserActions = {
   /** Opens the model picker, which a budget notice offers when a budget pauses the model in use. */
   chooseModel?: () => void
   revert?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
-  /** Starts a new session with the history before this message and its prompt in the composer. */
+  /**
+   * Starts a new session with the history before this message. A prompt comes back in the composer; a reply keeps the
+   * history above the next prompt and opens without seeding it.
+   */
   fork?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
   /**
    * An input the server has not delivered yet. Like the TUI, a pending steer can move to the queue or be deleted;
