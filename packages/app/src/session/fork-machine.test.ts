@@ -21,6 +21,7 @@ const request = (messageID = "msg_1"): SessionForkEvent => ({
   type: "fork.requested",
   sessionID: "ses_1",
   messageID,
+  before: messageID,
   draft,
 })
 
@@ -41,7 +42,7 @@ describe("transitionSessionFork", () => {
     const [first, second, other] = replay([request(), request(), request("msg_2")], createSessionForkState("dialog"))
 
     expect(first?.effects).toEqual([
-      { type: "fork.start", attempt: 1, sessionID: "ses_1", messageID: "msg_1", timeoutMs: FORK_TIMEOUT_MS },
+      { type: "fork.start", attempt: 1, sessionID: "ses_1", before: "msg_1", timeoutMs: FORK_TIMEOUT_MS },
     ])
     expect(second?.state).toBe(first!.state)
     expect(second?.effects).toEqual([])
@@ -92,8 +93,23 @@ describe("transitionSessionFork", () => {
     expect(opened?.state).toEqual({ status: "idle", surface: "inline", attempt: 1 })
     expect(opened?.effects).toEqual([{ type: "fork.open", attempt: 1, session: forked, draft }])
     expect(again?.effects).toEqual([
-      { type: "fork.start", attempt: 2, sessionID: "ses_1", messageID: "msg_2", timeoutMs: FORK_TIMEOUT_MS },
+      { type: "fork.start", attempt: 2, sessionID: "ses_1", before: "msg_2", timeoutMs: FORK_TIMEOUT_MS },
     ])
+  })
+
+  test("a fork from a reply cuts at the next prompt and opens without a draft", () => {
+    const [started, opened] = replay(
+      [
+        { type: "fork.requested", sessionID: "ses_1", messageID: "msg_2", before: "msg_3" },
+        { type: "fork.succeeded", attempt: 1, session: forked },
+      ],
+      createSessionForkState("inline"),
+    )
+
+    expect(started?.effects).toEqual([
+      { type: "fork.start", attempt: 1, sessionID: "ses_1", before: "msg_3", timeoutMs: FORK_TIMEOUT_MS },
+    ])
+    expect(opened?.effects).toEqual([{ type: "fork.open", attempt: 1, session: forked }])
   })
 
   test("a failed fork toasts and lets the user pick again", () => {

@@ -23,7 +23,10 @@ export type SessionForkState =
       readonly attempt: number
       readonly sessionID: string
       readonly messageID: string
-      readonly draft: SessionForkDraft
+      /** The message the copy ends before, or the end of the transcript when absent. */
+      readonly before?: string
+      /** Absent when the fork opens without seeding the composer, as for an assistant message. */
+      readonly draft?: SessionForkDraft
     }
   | { readonly status: "closed"; readonly surface: SessionForkSurface; readonly attempt: number }
 
@@ -32,7 +35,8 @@ export type SessionForkEvent =
       readonly type: "fork.requested"
       readonly sessionID: string
       readonly messageID: string
-      readonly draft: SessionForkDraft
+      readonly before?: string
+      readonly draft?: SessionForkDraft
     }
   | { readonly type: "fork.succeeded"; readonly attempt: number; readonly session: SessionInfo }
   | { readonly type: "fork.failed"; readonly attempt: number; readonly message: string }
@@ -47,7 +51,8 @@ export type SessionForkEffect =
       readonly type: "fork.start"
       readonly attempt: number
       readonly sessionID: string
-      readonly messageID: string
+      /** The message the copy ends before, or the end of the transcript when absent. */
+      readonly before?: string
       readonly timeoutMs: number
     }
   /** Ends a run nobody waits for any more: aborts its request and resolves its caller with false. */
@@ -56,7 +61,7 @@ export type SessionForkEffect =
       readonly type: "fork.open"
       readonly attempt: number
       readonly session: SessionInfo
-      readonly draft: SessionForkDraft
+      readonly draft?: SessionForkDraft
     }
   | { readonly type: "fork.fail"; readonly attempt: number; readonly message?: string }
   | { readonly type: "dialog.close" }
@@ -106,6 +111,7 @@ export function transitionSessionFork(state: SessionForkState, event: SessionFor
         attempt,
         sessionID: event.sessionID,
         messageID: event.messageID,
+        before: event.before,
         draft: event.draft,
       },
       effects: [
@@ -113,7 +119,7 @@ export function transitionSessionFork(state: SessionForkState, event: SessionFor
           type: "fork.start",
           attempt,
           sessionID: event.sessionID,
-          messageID: event.messageID,
+          before: event.before,
           timeoutMs: FORK_TIMEOUT_MS,
         },
       ],

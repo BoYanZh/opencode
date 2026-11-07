@@ -1,6 +1,7 @@
 import { createEffect, createSignal, on, onCleanup, type Accessor } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
 import { base64Encode } from "@opencode/util/encode"
+import type { SessionMessageUser } from "@opencode/client/promise"
 import { useComposerState } from "@/composer/persistence"
 import { extractPromptContext, extractPromptFromMessage } from "@/composer/prompt"
 import { useLanguage } from "@/runtime/i18n/language"
@@ -9,10 +10,12 @@ import { useData, useServer } from "@/runtime/server/current"
 import { showToast } from "@/shell/notifications/toast"
 import { sessionHref } from "@/shell/routes/session"
 import { useWorkspaceLocation } from "@/workspaces/location"
+import { nextPromptID } from "./fork-boundary"
 import {
   createSessionForkState,
   selectSessionForkView,
   transitionSessionFork,
+  type SessionForkDraft,
   type SessionForkEffect,
   type SessionForkEvent,
 } from "./fork-machine"
@@ -23,7 +26,9 @@ export type SessionForkControllerOptions =
 
 /**
  * Forks a session before one of its prompts: the new session keeps the history above the prompt, opens, and has the
- * prompt back in its composer to edit and send. One fork runs at a time; `fork` resolves to whether it opened.
+ * prompt back in its composer to edit and send. Forking from an assistant message keeps the history above the next
+ * prompt instead, opening the fork without seeding the composer. One fork runs at a time; `fork` resolves to whether
+ * it opened.
  */
 export function createSessionForkController(options: SessionForkControllerOptions) {
   const navigate = useNavigate()
@@ -71,7 +76,7 @@ export function createSessionForkController(options: SessionForkControllerOption
         done: Promise.withResolvers<boolean>(),
       })
       serverSDK.api.session
-        .fork({ sessionID: effect.sessionID, before: effect.messageID }, { signal: controller.signal })
+        .fork({ sessionID: effect.sessionID, before: effect.before }, { signal: controller.signal })
         .then(
           (session) => dispatch({ type: "fork.succeeded", attempt: effect.attempt, session }),
           (cause: unknown) =>
@@ -89,9 +94,14 @@ export function createSessionForkController(options: SessionForkControllerOption
 
     if (effect.type === "fork.open") {
       data.session.remember(effect.session)
-      const target = prompt.capture({ dir: base64Encode(effect.session.location.directory), id: effect.session.id })
-      target.set(effect.draft.prompt)
-      target.context.replace([...effect.draft.context])
+
+      // A fork from a reply has no prompt to restore, so it leaves the composer as it is.
+      if (effect.draft) {
+        const target = prompt.capture({ dir: base64Encode(effect.session.location.directory), id: effect.session.id })
+        target.set(effect.draft.prompt)
+        target.context.replace([...effect.draft.context])
+      }
+
       navigate(sessionHref(server.key, effect.session.id))
       settle(effect.attempt, true)
 
@@ -104,28 +114,38 @@ export function createSessionForkController(options: SessionForkControllerOption
     showToast({ title: language.t("common.requestFailed"), description: effect.message })
   }
 
+  const draftFromPrompt = (message: SessionMessageUser, sessionID: string): SessionForkDraft => {
+    // The prompt's paths are relative to the session it was sent in.
+    const directory = data.session.get(sessionID)?.location.directory ?? location().directory
+    const context = extractPromptContext(message, { directory })
+
+    return {
+      prompt: extractPromptFromMessage(message, {
+        directory,
+        attachmentName: language.t("common.attachment"),
+        sessionTitle: (id) => data.session.get(id)?.title,
+      }),
+      context: [...context.comments, ...context.files],
+    }
+  }
+
   const fork = (input: { sessionID: string; messageID: string }) => {
     const message = data.session.message.get(input.sessionID, input.messageID)
 
-    if (message?.type !== "user") return Promise.resolve(false)
+    if (!message || (message.type !== "user" && message.type !== "assistant")) return Promise.resolve(false)
 
-    // The prompt's paths are relative to the session it was sent in.
-    const directory = data.session.get(input.sessionID)?.location.directory ?? location().directory
-    const context = extractPromptContext(message, { directory })
     const before = machine()
 
     dispatch({
       type: "fork.requested",
       sessionID: input.sessionID,
       messageID: input.messageID,
-      draft: {
-        prompt: extractPromptFromMessage(message, {
-          directory,
-          attachmentName: language.t("common.attachment"),
-          sessionTitle: (id) => data.session.get(id)?.title,
-        }),
-        context: [...context.comments, ...context.files],
-      },
+      // A reply forks before the next prompt, and keeps everything when no prompt follows.
+      before:
+        message.type === "user"
+          ? message.id
+          : nextPromptID(data.session.message.list(input.sessionID), message.id),
+      draft: message.type === "user" ? draftFromPrompt(message, input.sessionID) : undefined,
     })
     const after = machine()
 
